@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parallax Flip Window</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Pre-scroll spacer: gives room to scroll the card into view -->
+  <div class="spacer spacer--entry"></div>
+
+  <!-- The component container: this gets pinned during flip + expansion -->
+  <div class="component-container">
+    <div class="perspective-wrapper">
+      <div class="card">
+      <div class="card-inner">
+
+      <!-- HUD overlay elements -->
+      <div class="scan-line"></div>
+      <div class="frame-corner frame-corner--tl"></div>
+      <div class="frame-corner frame-corner--tr"></div>
+      <div class="frame-corner frame-corner--bl"></div>
+      <div class="frame-corner frame-corner--br"></div>
+      <span class="hud-text hud-text--top">// PORTAL ACTIVE</span>
+      <span class="hud-text hud-text--bottom">DEPTH: ∞</span>
+
+      <!-- Front Face: Deep space / cosmic portal -->
+      <div class="card-face front-face">
+
+        <!-- Background layer: deep space with nebula -->
+        <div class="parallax-layer" data-depth="0.5" style="z-index: 1;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="nebula1" cx="30%" cy="40%" r="50%">
+                <stop offset="0%" style="stop-color:#1a0533; stop-opacity:1"/>
+                <stop offset="50%" style="stop-color:#0a0a1a; stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#050508; stop-opacity:1"/>
+              </radialGradient>
+              <radialGradient id="nebula2" cx="70%" cy="60%" r="40%">
+                <stop offset="0%" style="stop-color:#001a33; stop-opacity:0.8"/>
+                <stop offset="100%" style="stop-color:transparent; stop-opacity:0"/>
+              </radialGradient>
+              <radialGradient id="nebulaGlow" cx="50%" cy="50%" r="35%">
+                <stop offset="0%" style="stop-color:#00d2ff; stop-opacity:0.06"/>
+                <stop offset="100%" style="stop-color:transparent; stop-opacity:0"/>
+              </radialGradient>
+            </defs>
+            <rect width="800" height="600" fill="url(#nebula1)"/>
+            <rect width="800" height="600" fill="url(#nebula2)"/>
+            <rect width="800" height="600" fill="url(#nebulaGlow)"/>
+            <!-- Distant stars -->
+            <circle cx="120" cy="80" r="1" fill="#fff" opacity="0.7"/>
+            <circle cx="340" cy="45" r="0.8" fill="#fff" opacity="0.5"/>
+            <circle cx="560" cy="120" r="1.2" fill="#fff" opacity="0.6"/>
+            <circle cx="720" cy="60" r="0.8" fill="#fff" opacity="0.4"/>
+            <circle cx="200" cy="180" r="0.6" fill="#fff" opacity="0.3"/>
+            <circle cx="650" cy="200" r="1" fill="#00d2ff" opacity="0.4"/>
+            <circle cx="80" cy="350" r="0.8" fill="#fff" opacity="0.5"/>
+            <circle cx="400" cy="500" r="1" fill="#fff" opacity="0.3"/>
+            <circle cx="750" cy="400" r="0.7" fill="#a855f7" opacity="0.5"/>
+            <circle cx="500" cy="30" r="1.5" fill="#fff" opacity="0.8"/>
+            <circle cx="150" cy="520" r="0.8" fill="#fff" opacity="0.4"/>
+            <circle cx="600" cy="550" r="1" fill="#fff" opacity="0.3"/>
+            <circle cx="300" cy="300" r="0.5" fill="#00d2ff" opacity="0.3"/>
+            <circle cx="450" cy="150" r="0.7" fill="#fff" opacity="0.5"/>
+            <circle cx="680" cy="480" r="0.9" fill="#fff" opacity="0.4"/>
+          </svg>
+        </div>
+
+        <!-- Midground layer: geometric portal frame -->
+        <div class="parallax-layer" data-depth="1.75" style="z-index: 2;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="portalRing" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#00d2ff; stop-opacity:0.4"/>
+                <stop offset="50%" style="stop-color:#a855f7; stop-opacity:0.2"/>
+                <stop offset="100%" style="stop-color:#00d2ff; stop-opacity:0.4"/>
+              </linearGradient>
+            </defs>
+            <!-- Outer portal ring -->
+            <ellipse cx="400" cy="300" rx="260" ry="220" fill="none" stroke="url(#portalRing)" stroke-width="1.5" opacity="0.6"/>
+            <ellipse cx="400" cy="300" rx="240" ry="200" fill="none" stroke="rgba(0,210,255,0.15)" stroke-width="0.5"/>
+            <!-- Inner geometric shapes -->
+            <polygon points="400,120 520,220 520,380 400,480 280,380 280,220" fill="none" stroke="rgba(0,210,255,0.25)" stroke-width="0.8"/>
+            <polygon points="400,150 500,230 500,370 400,450 300,370 300,230" fill="none" stroke="rgba(168,85,247,0.15)" stroke-width="0.5"/>
+            <!-- Horizontal scan lines -->
+            <line x1="150" y1="300" x2="280" y2="300" stroke="rgba(0,210,255,0.12)" stroke-width="0.5"/>
+            <line x1="520" y1="300" x2="650" y2="300" stroke="rgba(0,210,255,0.12)" stroke-width="0.5"/>
+            <!-- Corner accents -->
+            <path d="M100,100 L140,100 L140,104" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M100,100 L100,140 L104,140" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M700,100 L660,100 L660,104" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M700,100 L700,140 L696,140" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M100,500 L140,500 L140,496" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M100,500 L100,460 L104,460" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M700,500 L660,500 L660,496" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <path d="M700,500 L700,460 L696,460" fill="none" stroke="rgba(0,210,255,0.3)" stroke-width="1"/>
+            <!-- Floating data fragments -->
+            <rect x="130" y="200" width="40" height="2" fill="rgba(0,210,255,0.2)" rx="1"/>
+            <rect x="130" y="210" width="25" height="2" fill="rgba(0,210,255,0.15)" rx="1"/>
+            <rect x="630" y="380" width="35" height="2" fill="rgba(168,85,247,0.2)" rx="1"/>
+            <rect x="630" y="390" width="50" height="2" fill="rgba(168,85,247,0.15)" rx="1"/>
+          </svg>
+        </div>
+
+        <!-- Foreground layer: particles and light streaks -->
+        <div class="parallax-layer" data-depth="3.0" style="z-index: 3;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="particle">
+                <stop offset="0%" style="stop-color:#00d2ff; stop-opacity:0.8"/>
+                <stop offset="100%" style="stop-color:#00d2ff; stop-opacity:0"/>
+              </radialGradient>
+              <radialGradient id="particlePurple">
+                <stop offset="0%" style="stop-color:#a855f7; stop-opacity:0.7"/>
+                <stop offset="100%" style="stop-color:#a855f7; stop-opacity:0"/>
+              </radialGradient>
+            </defs>
+            <!-- Floating light particles -->
+            <circle cx="180" cy="150" r="5" fill="url(#particle)"/>
+            <circle cx="620" cy="130" r="4" fill="url(#particlePurple)"/>
+            <circle cx="350" cy="80" r="3" fill="url(#particle)"/>
+            <circle cx="500" cy="480" r="4.5" fill="url(#particle)"/>
+            <circle cx="150" cy="420" r="3" fill="url(#particlePurple)"/>
+            <circle cx="680" cy="350" r="4" fill="url(#particle)"/>
+            <circle cx="250" cy="520" r="3.5" fill="url(#particlePurple)"/>
+            <circle cx="580" cy="90" r="3" fill="url(#particle)"/>
+            <!-- Light streaks -->
+            <line x1="100" y1="200" x2="160" y2="195" stroke="rgba(0,210,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="650" y1="450" x2="710" y2="443" stroke="rgba(168,85,247,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="300" y1="550" x2="350" y2="547" stroke="rgba(0,210,255,0.25)" stroke-width="1" stroke-linecap="round"/>
+            <!-- Center glow -->
+            <circle cx="400" cy="300" r="4" fill="#00d2ff" opacity="0.5"/>
+            <circle cx="400" cy="300" r="2" fill="#fff" opacity="0.8"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Back Face: Cyberpunk cityscape / digital world (different scene) -->
+      <div class="card-face back-face">
+        <svg class="parallax-layer" data-depth="1.25" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+          <defs>
+            <linearGradient id="cyberSky" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#0a0015"/>
+              <stop offset="40%" style="stop-color:#0f0020"/>
+              <stop offset="100%" style="stop-color:#050010"/>
+            </linearGradient>
+            <linearGradient id="building1" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#1a0033"/>
+              <stop offset="100%" style="stop-color:#0a0015"/>
+            </linearGradient>
+          </defs>
+          <!-- Sky -->
+          <rect width="800" height="600" fill="url(#cyberSky)"/>
+          <!-- Horizon glow -->
+          <ellipse cx="400" cy="380" rx="500" ry="100" fill="rgba(168,85,247,0.06)"/>
+          <ellipse cx="400" cy="380" rx="300" ry="50" fill="rgba(0,210,255,0.04)"/>
+          <!-- Perspective grid floor -->
+          <line x1="0" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.12)" stroke-width="0.5"/>
+          <line x1="100" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.08)" stroke-width="0.5"/>
+          <line x1="200" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.1)" stroke-width="0.5"/>
+          <line x1="300" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.12)" stroke-width="0.5"/>
+          <line x1="500" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.12)" stroke-width="0.5"/>
+          <line x1="600" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.1)" stroke-width="0.5"/>
+          <line x1="700" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.08)" stroke-width="0.5"/>
+          <line x1="800" y1="600" x2="400" y2="380" stroke="rgba(168,85,247,0.12)" stroke-width="0.5"/>
+          <!-- Horizontal grid -->
+          <line x1="80" y1="430" x2="720" y2="430" stroke="rgba(168,85,247,0.06)" stroke-width="0.5"/>
+          <line x1="120" y1="470" x2="680" y2="470" stroke="rgba(168,85,247,0.08)" stroke-width="0.5"/>
+          <line x1="140" y1="510" x2="660" y2="510" stroke="rgba(168,85,247,0.1)" stroke-width="0.5"/>
+          <line x1="150" y1="550" x2="650" y2="550" stroke="rgba(168,85,247,0.12)" stroke-width="0.5"/>
+          <!-- City towers -->
+          <rect x="60" y="180" width="35" height="220" fill="url(#building1)" opacity="0.9"/>
+          <rect x="65" y="190" width="4" height="8" fill="rgba(0,210,255,0.6)"/>
+          <rect x="78" y="210" width="3" height="5" fill="rgba(168,85,247,0.5)"/>
+          <rect x="65" y="250" width="3" height="6" fill="rgba(0,210,255,0.4)"/>
+          <rect x="78" y="290" width="4" height="4" fill="rgba(0,210,255,0.3)"/>
+          <rect x="120" y="240" width="28" height="160" fill="url(#building1)" opacity="0.7"/>
+          <rect x="125" y="250" width="3" height="5" fill="rgba(0,210,255,0.5)"/>
+          <rect x="138" y="270" width="3" height="4" fill="rgba(168,85,247,0.4)"/>
+          <rect x="180" y="160" width="45" height="240" fill="url(#building1)" opacity="0.95"/>
+          <rect x="190" y="170" width="5" height="8" fill="rgba(0,210,255,0.7)"/>
+          <rect x="208" y="185" width="4" height="6" fill="rgba(168,85,247,0.5)"/>
+          <rect x="190" y="220" width="4" height="5" fill="rgba(0,210,255,0.4)"/>
+          <rect x="208" y="250" width="3" height="4" fill="rgba(0,210,255,0.3)"/>
+          <rect x="190" y="300" width="5" height="4" fill="rgba(168,85,247,0.3)"/>
+          <rect x="270" y="220" width="30" height="180" fill="url(#building1)" opacity="0.8"/>
+          <rect x="275" y="230" width="3" height="6" fill="rgba(0,210,255,0.5)"/>
+          <rect x="530" y="200" width="40" height="200" fill="url(#building1)" opacity="0.9"/>
+          <rect x="535" y="210" width="4" height="7" fill="rgba(0,210,255,0.6)"/>
+          <rect x="555" y="230" width="3" height="5" fill="rgba(168,85,247,0.5)"/>
+          <rect x="535" y="270" width="4" height="4" fill="rgba(0,210,255,0.3)"/>
+          <rect x="600" y="170" width="50" height="230" fill="url(#building1)" opacity="0.95"/>
+          <rect x="610" y="180" width="5" height="8" fill="rgba(0,210,255,0.7)"/>
+          <rect x="630" y="200" width="4" height="6" fill="rgba(168,85,247,0.5)"/>
+          <rect x="610" y="240" width="4" height="5" fill="rgba(0,210,255,0.4)"/>
+          <rect x="630" y="280" width="5" height="4" fill="rgba(168,85,247,0.3)"/>
+          <rect x="680" y="230" width="35" height="170" fill="url(#building1)" opacity="0.8"/>
+          <rect x="685" y="240" width="3" height="6" fill="rgba(0,210,255,0.5)"/>
+          <rect x="700" y="260" width="3" height="4" fill="rgba(168,85,247,0.4)"/>
+          <!-- Central monolith -->
+          <rect x="360" y="80" width="80" height="320" fill="rgba(8,0,18,0.95)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+          <rect x="370" y="95" width="60" height="25" fill="rgba(168,85,247,0.08)"/>
+          <rect x="375" y="130" width="50" height="2" fill="rgba(0,210,255,0.5)"/>
+          <rect x="375" y="142" width="35" height="2" fill="rgba(0,210,255,0.4)"/>
+          <rect x="375" y="154" width="45" height="2" fill="rgba(0,210,255,0.3)"/>
+          <rect x="375" y="175" width="50" height="2" fill="rgba(168,85,247,0.4)"/>
+          <rect x="375" y="187" width="28" height="2" fill="rgba(168,85,247,0.3)"/>
+          <rect x="375" y="210" width="50" height="2" fill="rgba(0,210,255,0.3)"/>
+          <rect x="375" y="222" width="40" height="2" fill="rgba(0,210,255,0.2)"/>
+          <!-- Data nodes -->
+          <circle cx="320" cy="130" r="3" fill="rgba(0,210,255,0.6)"/>
+          <circle cx="480" cy="150" r="2.5" fill="rgba(168,85,247,0.5)"/>
+          <circle cx="280" cy="280" r="2" fill="rgba(0,210,255,0.4)"/>
+          <circle cx="520" cy="100" r="2" fill="rgba(0,210,255,0.5)"/>
+          <!-- Node connections -->
+          <line x1="320" y1="130" x2="360" y2="107" stroke="rgba(0,210,255,0.2)" stroke-width="0.5"/>
+          <line x1="480" y1="150" x2="440" y2="107" stroke="rgba(168,85,247,0.15)" stroke-width="0.5"/>
+          <line x1="520" y1="100" x2="480" y2="150" stroke="rgba(0,210,255,0.12)" stroke-width="0.5"/>
+          <!-- Sky stars -->
+          <circle cx="100" cy="40" r="1" fill="#fff" opacity="0.5"/>
+          <circle cx="300" cy="60" r="0.8" fill="#fff" opacity="0.3"/>
+          <circle cx="500" cy="35" r="1" fill="#fff" opacity="0.4"/>
+          <circle cx="700" cy="50" r="0.8" fill="#fff" opacity="0.3"/>
+          <circle cx="750" cy="90" r="1" fill="#fff" opacity="0.4"/>
+          <circle cx="50" cy="100" r="0.7" fill="#fff" opacity="0.3"/>
+        </svg>
+        <div class="back-fullscreen-overlay"></div>
+      </div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll indicator (fixed to viewport bottom) -->
+  <div class="scroll-indicator">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5v14"/>
+      <path d="M19 12l-7 7-7-7"/>
+    </svg>
+  </div>
+
+  <!-- Post-scroll spacer -->
+  <div class="spacer spacer--rest"></div>
+
+  <!-- GSAP 3.x CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
