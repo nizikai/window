@@ -1,253 +1,227 @@
-// Parallax Depth Window
+// Parallax Flip Window — static cube + tilting/flipping card frame
 
-/**
- * DepthParallax
- * 
- * How it works:
- * 1. Each .depth-layer gets translateZ based on data-depth (spread across Z-axis)
- * 2. On cursor move, each layer gets an X/Y translation proportional to its depth
- *    - Far layers (low depth) move slightly OPPOSITE to cursor → background parallax
- *    - Near layers (high depth) move MORE opposite to cursor → foreground parallax
- * 3. The card-inner also tilts slightly to sell the 3D rotation
- *
- * This is a simpler, more reliable approach than rotating a perspective container.
- * Each layer just translates by (cursor * depth * multiplier) — more depth = more movement.
- */
-var DepthParallax = (function () {
+(function () {
   'use strict';
 
-  // --- Tuning ---
-  var TRANSLATE_FACTOR = 40;    // px of movement per depth unit at full cursor offset
-  var SMOOTHING = 0.08;
-  var TRACKING_BOUNDARY = 400;
+  // ==========================================
+  // THREE.JS — STATIC SCENE
+  // ==========================================
+  var canvas = document.getElementById('canvas');
+  if (!canvas || typeof THREE === 'undefined') return;
 
-  // --- State ---
-  var card = null;
-  var layers = [];
-  var currentX = 0, currentY = 0;
-  var targetX = 0, targetY = 0;
-  var rafId = null;
-  var isRunning = false;
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06091a);
+
+  var camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 100);
+  camera.position.z = 4;
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  var cubeGeo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+  var cubeMat = new THREE.MeshPhongMaterial({
+    color: 0x00d4ff, transparent: true, opacity: 0.18, shininess: 80
+  });
+  var cube = new THREE.Mesh(cubeGeo, cubeMat);
+  scene.add(cube);
+
+  cube.add(new THREE.LineSegments(
+    new THREE.EdgesGeometry(cubeGeo),
+    new THREE.LineBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.9 })
+  ));
+
+  scene.add(new THREE.AmbientLight(0x444466, 0.6));
+  var p1 = new THREE.PointLight(0x00d4ff, 1.5, 12); p1.position.set(2, 2, 3); scene.add(p1);
+  var p2 = new THREE.PointLight(0xa855f7, 0.8, 10); p2.position.set(-2, -1, 2); scene.add(p2);
+
+  // Theme swap (visual cue at flip midpoint)
+  function setTheme(themeName) {
+    if (themeName === 'back') {
+      cubeMat.color.setHex(0xa855f7);
+      cube.children[0].material.color.setHex(0xa855f7);
+      scene.background.setHex(0x0a0518);
+      p1.color.setHex(0xa855f7);
+    } else {
+      cubeMat.color.setHex(0x00d4ff);
+      cube.children[0].material.color.setHex(0x00d4ff);
+      scene.background.setHex(0x06091a);
+      p1.color.setHex(0x00d4ff);
+    }
+  }
+
+  // ==========================================
+  // STATE
+  // ==========================================
+  var stage = document.querySelector('.stage');
+  var card = document.querySelector('.card');
+  var cardInner = document.querySelector('.card-inner');
+  var sceneClip = document.querySelector('.scene-clip');
+
+  var targetCubeX = 0, targetCubeY = 0;
+  var currentCubeX = 0, currentCubeY = 0;
+  var SMOOTH = 0.07;
+
+  var flipDeg = 0;          // 0 → -180 during scroll
+  var themeFlipped = false;
+  var cursorActive = true;  // disabled during scroll flip
+
+  // Tilt state (separate quickTos drive the card-inner CSS rotation)
+  var qRX = null, qRY = null;
+  var MAX_TILT = 8;
 
   function lerp(a, b, t) { return a + (b - a) * t; }
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
 
-  function onMouseMove(e) {
-    if (!card) return;
-    var rect = card.getBoundingClientRect();
+  // ==========================================
+  // RESIZE
+  // ==========================================
+  function resize() {
+    var rect = stage.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height);
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', function () {
+    resize();
+    if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+  });
 
-    if (e.clientX < rect.left - TRACKING_BOUNDARY ||
-        e.clientX > rect.right + TRACKING_BOUNDARY ||
-        e.clientY < rect.top - TRACKING_BOUNDARY ||
-        e.clientY > rect.bottom + TRACKING_BOUNDARY) {
-      targetX = 0;
-      targetY = 0;
+  // ==========================================
+  // CURSOR — tilts card only. Cube stays still.
+  // ==========================================
+  document.addEventListener('mousemove', function (e) {
+    if (!cursorActive) return;
+    var r = stage.getBoundingClientRect();
+    var nx = clamp(((e.clientX - r.left) / r.width - 0.5) * 2, -1.2, 1.2);
+    var ny = clamp(((e.clientY - r.top) / r.height - 0.5) * 2, -1.2, 1.2);
+
+    // Card frame tilts
+    if (qRX && qRY) {
+      qRX(ny * MAX_TILT);
+      qRY(-nx * MAX_TILT);
+    }
+  });
+
+  // ==========================================
+  // CLIP-PATH UPDATER — narrows scene-clip as card rotates
+  // ==========================================
+  function updateClipFromFlip() {
+    var absDeg = Math.abs(flipDeg);
+    if (absDeg >= 90) {
+      sceneClip.style.opacity = '0';
       return;
     }
+    sceneClip.style.opacity = '1';
 
-    // Normalized cursor position: -1 (left/top) to +1 (right/bottom)
-    targetX = clamp(((e.clientX - rect.left) / rect.width - 0.5) * 2, -1, 1);
-    targetY = clamp(((e.clientY - rect.top) / rect.height - 0.5) * 2, -1, 1);
+    var rad = absDeg * Math.PI / 180;
+    var widthRatio = Math.cos(rad);
+    var insetPct = (1 - widthRatio) * 50;
+
+    sceneClip.style.clipPath =
+      'inset(0% ' + insetPct + '% 0% ' + insetPct + '% round 14px)';
   }
 
+  // ==========================================
+  // RENDER LOOP — cube is static, just render
+  // ==========================================
   function tick() {
-    if (!isRunning) return;
-    rafId = requestAnimationFrame(tick);
-
-    currentX = lerp(currentX, targetX, SMOOTHING);
-    currentY = lerp(currentY, targetY, SMOOTHING);
-
-    // Move each layer: offset = -cursor * depth * factor
-    // Negative so layers move opposite to cursor (parallax look-through effect)
-    for (var i = 0; i < layers.length; i++) {
-      var l = layers[i];
-      var tx = -currentX * l.depth * TRANSLATE_FACTOR;
-      var ty = -currentY * l.depth * TRANSLATE_FACTOR;
-      l.el.style.transform = 'translate(' + tx + 'px, ' + ty + 'px)';
-    }
+    requestAnimationFrame(tick);
+    renderer.render(scene, camera);
   }
 
-  return {
-    start: function () {
-      card = document.querySelector('.card');
-      if (!card) return;
-
-      var allLayers = document.querySelectorAll('.depth-layer');
-      layers = [];
-      for (var i = 0; i < allLayers.length; i++) {
-        var el = allLayers[i];
-        var depth = parseFloat(el.getAttribute('data-depth')) || 1;
-        layers.push({ el: el, depth: depth });
-      }
-
-      isRunning = true;
-      document.addEventListener('mousemove', onMouseMove);
-      rafId = requestAnimationFrame(tick);
-    },
-
-    stop: function () {
-      isRunning = false;
-      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-      document.removeEventListener('mousemove', onMouseMove);
-      targetX = 0; targetY = 0;
-    },
-
-    reset: function (immediate) {
-      targetX = 0; targetY = 0;
-      if (immediate) {
-        currentX = 0; currentY = 0;
-        for (var i = 0; i < layers.length; i++) {
-          layers[i].el.style.transform = 'translate(0px, 0px)';
-        }
-      }
-    }
-  };
-})();
-
-
-/**
- * TiltController — tilts the card-inner on cursor for the 3D card feel
- */
-var TiltController = (function () {
-  'use strict';
-
-  var MAX_TILT = 8;
-  var TRACKING_BOUNDARY = 400;
-  var RESET_DURATION = 0.5;
-  var card = null, cardInner = null, active = false, isTracking = false;
-  var quickRX = null, quickRY = null;
-
-  function onMouseMove(e) {
-    if (!active || !card || !cardInner) return;
-    var rect = card.getBoundingClientRect();
-    if (e.clientX < rect.left - TRACKING_BOUNDARY || e.clientX > rect.right + TRACKING_BOUNDARY ||
-        e.clientY < rect.top - TRACKING_BOUNDARY || e.clientY > rect.bottom + TRACKING_BOUNDARY) {
-      if (isTracking) {
-        isTracking = false;
-        gsap.to(cardInner, { rotateX: 0, rotateY: 0, duration: RESET_DURATION, ease: 'power2.out', overwrite: 'auto' });
-      }
-      return;
-    }
-    isTracking = true;
-    var nx = -((e.clientX - rect.left) / rect.width - 0.5) * 2;
-    var ny = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-    quickRX(ny * MAX_TILT);
-    quickRY(nx * MAX_TILT);
+  // ==========================================
+  // GSAP — TILT (cursor) + SCROLL (flip + expand)
+  // ==========================================
+  if (typeof gsap !== 'undefined') {
+    qRX = gsap.quickTo(cardInner, 'rotateX', { duration: 0.4, ease: 'power2.out' });
+    qRY = gsap.quickTo(cardInner, 'rotateY', { duration: 0.4, ease: 'power2.out' });
   }
 
-  return {
-    start: function () {
-      card = document.querySelector('.card');
-      cardInner = document.querySelector('.card-inner');
-      if (!card || !cardInner) return;
-      active = true;
-      quickRX = gsap.quickTo(cardInner, 'rotateX', { duration: 0.4, ease: 'power2.out' });
-      quickRY = gsap.quickTo(cardInner, 'rotateY', { duration: 0.4, ease: 'power2.out' });
-      document.addEventListener('mousemove', onMouseMove);
-    },
-    stop: function () {
-      active = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      isTracking = false;
-    },
-    reset: function (immediate) {
-      if (!cardInner) return;
-      if (immediate) gsap.set(cardInner, { rotateX: 0, rotateY: 0, overwrite: true });
-      else gsap.to(cardInner, { rotateX: 0, rotateY: 0, duration: RESET_DURATION, ease: 'power2.out', overwrite: 'auto' });
-    }
-  };
-})();
+  if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+    gsap.registerPlugin(ScrollTrigger);
 
+    var tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: '.component-container',
+        pin: true,
+        scrub: 1,
+        start: 'top top',
+        end: function () { return '+=' + Math.round(window.innerHeight * 2.5); },
+        invalidateOnRefresh: true,
+        onUpdate: function (self) {
+          // Disable cursor parallax while scroll animation is active (anything > 0 progress)
+          var newCursorActive = self.progress === 0;
+          if (newCursorActive !== cursorActive) {
+            cursorActive = newCursorActive;
+            if (!cursorActive) {
+              targetCubeX = 0; targetCubeY = 0;
+              if (qRX) qRX(0);
+              if (qRY) qRY(0);
+            }
+          }
 
-/**
- * ScrollAnimator — scroll-driven flip + expansion
- */
-var ScrollAnimator = (function () {
-  'use strict';
-  var timeline = null;
-  var flipStartCbs = [], flipReverseCbs = [];
-  var hasFlipStarted = false;
+          // Track card flip angle for clip-path
+          flipDeg = -180 * self.progress;
+          updateClipFromFlip();
 
-  return {
-    init: function () {
-      var container = document.querySelector('.component-container');
-      var card = document.querySelector('.card');
-      if (!container || !card) return;
-
-      gsap.registerPlugin(ScrollTrigger);
-
-      timeline = gsap.timeline({
-        scrollTrigger: {
-          trigger: container, pin: true, scrub: 1,
-          start: 'top top',
-          end: function () { return '+=' + Math.round(window.innerHeight * 2.5); },
-          invalidateOnRefresh: true,
-          onUpdate: function (self) {
-            if (self.progress > 0 && !hasFlipStarted) { hasFlipStarted = true; flipStartCbs.forEach(function (cb) { cb(); }); }
-            if (self.progress === 0 && hasFlipStarted) { hasFlipStarted = false; flipReverseCbs.forEach(function (cb) { cb(); }); }
+          // Theme swap at midpoint
+          if (self.progress >= 0.5 && !themeFlipped) {
+            themeFlipped = true;
+            setTheme('back');
+          } else if (self.progress < 0.5 && themeFlipped) {
+            themeFlipped = false;
+            setTheme('front');
           }
         }
-      });
-
-      var hud = card.querySelectorAll('.scan-line, .frame-corner');
-      timeline.to(card, { rotateY: -180, duration: 0.72, ease: 'power3.inOut' }, 0);
-      timeline.to(card, { rotateX: -10, rotateZ: -0.9, duration: 0.36, ease: 'power2.inOut' }, 0);
-      timeline.to(card, { rotateX: 0, rotateZ: 0, duration: 0.36, ease: 'power2.inOut' }, 0.36);
-      timeline.to(card, {
-        width: '120vw', height: '120vh', borderRadius: '0px', borderWidth: '0px', boxShadow: 'none',
-        duration: 0.72, ease: 'power3.inOut',
-        onStart: function () { card.style.aspectRatio = 'auto'; },
-        onReverseComplete: function () { card.style.aspectRatio = '16 / 9'; }
-      }, 0);
-      if (hud.length) timeline.to(hud, { opacity: 0, duration: 0.24, ease: 'none' }, 0.36);
-    },
-    onFlipStart: function (cb) { flipStartCbs.push(cb); },
-    onFlipReverse: function (cb) { flipReverseCbs.push(cb); },
-    refresh: function () { if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh(); }
-  };
-})();
-
-
-// === INIT ===
-document.addEventListener('DOMContentLoaded', function () {
-  if (typeof gsap === 'undefined') return;
-
-  ScrollAnimator.init();
-  DepthParallax.start();
-
-  if (window.matchMedia('(hover: hover)').matches) {
-    TiltController.start();
-  }
-
-  // Scroll indicator fade
-  var indicator = document.querySelector('.scroll-indicator');
-  if (indicator) {
-    window.addEventListener('scroll', function check() {
-      if (window.scrollY > window.innerHeight * 0.1) {
-        gsap.to(indicator, { opacity: 0, duration: 0.3, onComplete: function () { indicator.style.display = 'none'; } });
-        window.removeEventListener('scroll', check);
       }
     });
+
+    // Card flips 180°
+    tl.to(card, { rotateY: -180, duration: 0.72, ease: 'power3.inOut' }, 0);
+
+    // Wobble during flip
+    tl.to(card, { rotateX: -8, rotateZ: -0.6, duration: 0.36, ease: 'power2.inOut' }, 0);
+    tl.to(card, { rotateX: 0, rotateZ: 0, duration: 0.36, ease: 'power2.inOut' }, 0.36);
+
+    // Expand stage to fullscreen alongside the flip
+    tl.to(stage, {
+      width: '100vw', height: '100vh',
+      duration: 0.72, ease: 'power3.inOut',
+      onStart: function () { stage.style.aspectRatio = 'auto'; },
+      onReverseComplete: function () { stage.style.aspectRatio = '16 / 9'; }
+    }, 0);
+
+    // Border-radius stays 14 through flip, drops to 0 only at the end
+    tl.to([sceneClip, card.querySelectorAll('.card-face')], {
+      borderRadius: '14px', duration: 0.6, ease: 'power3.inOut'
+    }, 0);
+    tl.to([sceneClip, card.querySelectorAll('.card-face')], {
+      borderRadius: '0px', duration: 0.1, ease: 'none'
+    }, 0.7);
+
+    // Drop frame styling at the end
+    tl.to(card.querySelectorAll('.card-face'), {
+      borderWidth: '0px', boxShadow: 'none', duration: 0.72, ease: 'power3.inOut'
+    }, 0);
+
+    // Fade HUD during flip
+    tl.to(card.querySelectorAll('.frame-corner, .scan-line'), {
+      opacity: 0, duration: 0.24, ease: 'none'
+    }, 0.36);
+
+    // Scroll indicator hide
+    var indicator = document.querySelector('.scroll-indicator');
+    if (indicator) {
+      window.addEventListener('scroll', function check() {
+        if (window.scrollY > window.innerHeight * 0.05) {
+          gsap.to(indicator, { opacity: 0, duration: 0.3, onComplete: function () { indicator.style.display = 'none'; } });
+          window.removeEventListener('scroll', check);
+        }
+      });
+    }
   }
 
-  // Resize
-  var resizeTimer;
-  window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh(); }, 150);
-  });
-
-  // Flip callbacks
-  ScrollAnimator.onFlipStart(function () {
-    DepthParallax.stop();
-    DepthParallax.reset(true);
-    TiltController.stop();
-    TiltController.reset(true);
-  });
-  ScrollAnimator.onFlipReverse(function () {
-    DepthParallax.start();
-    if (window.matchMedia('(hover: hover)').matches) TiltController.start();
-  });
-
-  ScrollAnimator.refresh();
-});
+  // Boot
+  resize();
+  tick();
+})();

@@ -9,134 +9,30 @@
 <body>
   <div class="component-container">
     <div class="perspective-wrapper">
-      <div class="card">
-      <div class="card-inner">
+      <div class="stage">
 
-      <!-- HUD overlay -->
-      <div class="scan-line"></div>
-      <div class="frame-corner frame-corner--tl"></div>
-      <div class="frame-corner frame-corner--tr"></div>
-      <div class="frame-corner frame-corner--bl"></div>
-      <div class="frame-corner frame-corner--br"></div>
-
-      <!-- FRONT FACE — Cosmic depth scene -->
-      <div class="card-face front-face">
-        <div class="depth-scene" id="frontScene">
-
-          <div class="depth-layer" data-depth="0.1">
-            <div class="bg-space bg-space--front">
-              <div class="star star--1"></div>
-              <div class="star star--2"></div>
-              <div class="star star--3"></div>
-              <div class="star star--4"></div>
-              <div class="star star--5"></div>
-              <div class="star star--6"></div>
-              <div class="star star--7"></div>
-              <div class="star star--8"></div>
-              <div class="star star--9"></div>
-              <div class="star star--10"></div>
-              <div class="nebula nebula--1"></div>
-              <div class="nebula nebula--2"></div>
-            </div>
-          </div>
-
-          <div class="depth-layer" data-depth="0.5">
-            <div class="ring ring--outer ring--cyan"></div>
-            <div class="ring ring--mid ring--purple"></div>
-            <div class="grid-plane grid-plane--front"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="1.0">
-            <div class="hex hex--1"></div>
-            <div class="hex hex--2"></div>
-            <div class="crosshair"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="2.0">
-            <div class="geo geo--1"></div>
-            <div class="geo geo--2"></div>
-            <div class="geo geo--3"></div>
-            <div class="geo geo--4"></div>
-            <div class="geo geo--5"></div>
-            <div class="geo geo--6"></div>
-            <div class="line-accent line-accent--1"></div>
-            <div class="line-accent line-accent--2"></div>
-            <div class="line-accent line-accent--3"></div>
-            <div class="line-accent line-accent--4"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="3.5">
-            <div class="orb orb--1"></div>
-            <div class="orb orb--2"></div>
-            <div class="orb orb--3"></div>
-            <div class="orb orb--4"></div>
-            <div class="orb orb--5"></div>
-            <div class="orb orb--6"></div>
-            <div class="orb orb--7"></div>
-            <div class="orb orb--8"></div>
-          </div>
-
+        <!-- STATIC scene wrapper. Canvas keeps full size. clip-path narrows on scroll. -->
+        <div class="scene-clip">
+          <canvas id="canvas"></canvas>
         </div>
-      </div>
 
-      <!-- BACK FACE — Different depth scene (warm/purple theme) -->
-      <div class="card-face back-face">
-        <div class="depth-scene" id="backScene">
+        <!-- TILTING + FLIPPING card frame on top -->
+        <div class="card">
+          <div class="card-inner">
 
-          <div class="depth-layer" data-depth="0.1">
-            <div class="bg-space bg-space--back">
-              <div class="star star--1"></div>
-              <div class="star star--2"></div>
-              <div class="star star--3"></div>
-              <div class="star star--4"></div>
-              <div class="star star--5"></div>
-              <div class="star star--6"></div>
-              <div class="star star--7"></div>
-              <div class="star star--8"></div>
-              <div class="nebula nebula--3"></div>
-              <div class="nebula nebula--4"></div>
-            </div>
+            <!-- HUD overlay (lives on the card, tilts/flips with it) -->
+            <div class="scan-line"></div>
+            <div class="frame-corner frame-corner--tl"></div>
+            <div class="frame-corner frame-corner--tr"></div>
+            <div class="frame-corner frame-corner--bl"></div>
+            <div class="frame-corner frame-corner--br"></div>
+
+            <div class="card-face front-face"></div>
+            <div class="card-face back-face"></div>
+
           </div>
-
-          <div class="depth-layer" data-depth="0.5">
-            <div class="ring ring--outer ring--purple"></div>
-            <div class="ring ring--mid ring--cyan"></div>
-            <div class="grid-plane grid-plane--back"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="1.0">
-            <div class="diamond diamond--1"></div>
-            <div class="diamond diamond--2"></div>
-            <div class="diamond diamond--3"></div>
-            <div class="crosshair crosshair--purple"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="2.0">
-            <div class="geo geo--b1"></div>
-            <div class="geo geo--b2"></div>
-            <div class="geo geo--b3"></div>
-            <div class="geo geo--b4"></div>
-            <div class="line-accent line-accent--b1"></div>
-            <div class="line-accent line-accent--b2"></div>
-            <div class="line-accent line-accent--b3"></div>
-            <div class="line-accent line-accent--b4"></div>
-          </div>
-
-          <div class="depth-layer" data-depth="3.5">
-            <div class="orb orb--b1"></div>
-            <div class="orb orb--b2"></div>
-            <div class="orb orb--b3"></div>
-            <div class="orb orb--b4"></div>
-            <div class="orb orb--b5"></div>
-            <div class="orb orb--b6"></div>
-            <div class="orb orb--b7"></div>
-            <div class="orb orb--b8"></div>
-          </div>
-
         </div>
-      </div>
 
-      </div>
       </div>
     </div>
   </div>
@@ -149,6 +45,7 @@
 
   <div class="spacer spacer--rest"></div>
 
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="js/app.js"></script>
