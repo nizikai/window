@@ -1,0 +1,210 @@
+/* Window v2 — full scene under rotating white wall with card hole */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --wall-color: #ffffff;
+  --ink-mid: #5f6271;
+  --wall-cover-size: 200%;
+  --hole-width: clamp(860px, 66vw, 1260px);
+  --hole-radius: clamp(18px, 2vw, 28px);
+  --frame-stroke: 6px;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  font-family: 'Courier New', monospace;
+  background: var(--wall-color);
+}
+
+body { min-height: 100vh; }
+
+.scroll-stage {
+  position: relative;
+  width: 100%;
+  height: 500vh;
+  background: var(--wall-color);
+}
+
+.pin-section {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--wall-color);
+  perspective: 1350px;
+  perspective-origin: 50% 50%;
+}
+
+/* z2: full viewport 3D scene. JS applies clip-path each frame so painted pixels stay inside
+   the rotating cutout's projected bbox. The canvas itself never rotates — only its visible
+   region changes — so the camera/perspective is unaffected by the wall flip. */
+.scene-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 2;
+  background: #050917;
+  will-change: clip-path;
+}
+
+/* z1: static white guard — plain white backdrop below the canvas.
+   Always fully opaque; no animation needed because the canvas clip-path already
+   ensures the dark scene only paints inside the rotating cutout. */
+.wall-gap-guard {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--wall-color);
+  pointer-events: none;
+}
+
+/* z3: oversized wall so white coverage stays full while rotating */
+.wall {
+  position: absolute;
+  top: calc((100% - var(--wall-cover-size)) / 2);
+  left: calc((100% - var(--wall-cover-size)) / 2);
+  width: var(--wall-cover-size);
+  height: var(--wall-cover-size);
+  z-index: 3;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  /* Force GPU compositing for smoother animation */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  /* Optimize rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Force layer creation */
+  isolation: isolate;
+}
+
+.wall-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  pointer-events: none;
+  /* Force GPU layer for each face */
+  will-change: transform;
+  contain: layout style paint;
+}
+
+.wall-front { z-index: 2; }
+.wall-back,
+.wall-tunnel {
+  display: none;
+}
+
+.wall-cutout {
+  width: calc(var(--hole-width) * 2);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--hole-radius);
+  background: transparent;
+  transform: scale(0.5);
+  transform-origin: center;
+  z-index: 2;
+  position: relative;
+  will-change: transform;
+  contain: layout style paint;
+  /* Same hex on both layers so the inner frame and the outer cover read as one wall.
+     The inset stroke creates a rounded "frame" inside the cutout (drawn over the scene)
+     and conveniently hides any sub-pixel misalignment between the canvas clip and the
+     cutout's outer edge. The outer 100vmax shadow paints the wall white outside the hole. */
+  box-shadow:
+    inset 0 0 0 var(--frame-stroke) var(--wall-color),
+    0 0 0 100vmax var(--wall-color);
+}
+
+.scroll-indicator {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--ink-mid);
+  animation: pulse-bounce 2.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.fps-counter {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-family: 'Courier New', monospace;
+  z-index: 10;
+  pointer-events: none;
+  min-width: 60px;
+  text-align: center;
+}
+
+.fps-value {
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 2px;
+  color: #00ff88;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.fps-value.warning {
+  color: #ffaa00;
+  text-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+}
+
+.fps-value.critical {
+  color: #ff3333;
+  text-shadow: 0 0 10px rgba(255, 51, 51, 0.5);
+}
+
+.fps-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+@keyframes pulse-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
+  50%      { transform: translateX(-50%) translateY(10px); opacity: 1; }
+}
+
+.after-spacer {
+  width: 100%;
+  height: 45vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-mid);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+  background: var(--wall-color);
+}
+
+@media (max-width: 780px) {
+  :root {
+    --hole-width: 86vw;
+  }
+
+  /* Portrait window shape on mobile */
+  .wall-cutout {
+    width: 90vw;
+    aspect-ratio: 9 / 16;
+  }
+}

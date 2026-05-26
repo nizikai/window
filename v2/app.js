@@ -12,8 +12,9 @@
   var lookCurrentX = 0;
   var lookCurrentY = 0;
   var isHoveringWall = false;
-  var FLIP_TO_BACK_AT = -98;
-  var FLIP_TO_FRONT_AT = -82;
+  // Flip scene exactly as the wall crosses 90deg (no hysteresis).
+  var FLIP_TO_BACK_AT = -90;
+  var FLIP_TO_FRONT_AT = -90;
 
   function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
 
@@ -27,18 +28,20 @@
     window.dispatchEvent(new CustomEvent('v2-wall-flip', { detail: { flipped: flipped } }));
   }
 
-  function emitWallMotion(progress, rotateYDeg, wallScale) {
+  function emitWallMotion(progress, rotateYDeg, wallScale, effectiveRotateYDeg, isHovering) {
     window.dispatchEvent(new CustomEvent('v2-wall-motion', {
       detail: {
         progress: Number(progress.toFixed(4)),
         rotateYDeg: Number(rotateYDeg.toFixed(3)),
-        wallScale: Number(wallScale.toFixed(4))
+        effectiveRotateYDeg: Number(effectiveRotateYDeg.toFixed(3)),
+        wallScale: Number(wallScale.toFixed(4)),
+        isHovering: Boolean(isHovering)
       }
     }));
   }
 
   function isBackFaceVisible(rotateYDeg) {
-    // Hysteresis avoids rapid front/back toggling around 90deg.
+    // Exact 90deg flip boundary for immediate scene switching.
     if (flipped) return rotateYDeg < FLIP_TO_FRONT_AT;
     return rotateYDeg < FLIP_TO_BACK_AT;
   }
@@ -71,8 +74,9 @@
       'rotateZ(' + rotateZ.toFixed(3) + 'deg)';
     wall.style.opacity = (1 - Math.abs(Math.sin(progress * Math.PI)) * 0.03).toFixed(3);
 
-    emitFlipState(isBackFaceVisible(baseRotateY));
-    emitWallMotion(progress, baseRotateY, wallScale);
+    // Flip detection should reflect the actual rendered rotation, including hover tilt.
+    emitFlipState(isBackFaceVisible(rotateY));
+    emitWallMotion(progress, baseRotateY, wallScale, rotateY, isHoveringWall);
   }
 
   var indicator = document.querySelector('.scroll-indicator');

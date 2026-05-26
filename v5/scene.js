@@ -23,6 +23,7 @@ function bootFallbackCanvas() {
 
   let isBackTheme = false;
   let wallProgress = 0;
+  let isSceneVisible = true;
   const vertices = [
     [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
     [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
@@ -73,6 +74,8 @@ function bootFallbackCanvas() {
   }
 
   function draw() {
+    requestAnimationFrame(draw);
+    
     const w = window.innerWidth;
     const h = window.innerHeight;
     const t = performance.now() * 0.001;
@@ -94,8 +97,13 @@ function bootFallbackCanvas() {
 
     ctx.strokeStyle = isBackTheme ? '#e0b2ff' : '#41ecff';
     ctx.lineWidth = 2.4;
-    ctx.shadowColor = isBackTheme ? 'rgba(224, 178, 255, 0.75)' : 'rgba(65, 236, 255, 0.75)';
-    ctx.shadowBlur = 14;
+    
+    // Optimize: only set shadow properties once per theme, not every frame
+    const shadowColor = isBackTheme ? 'rgba(224, 178, 255, 0.75)' : 'rgba(65, 236, 255, 0.75)';
+    if (ctx.shadowColor !== shadowColor) {
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = 14;
+    }
 
     ctx.beginPath();
     for (const [a, b] of edges) {
@@ -103,8 +111,6 @@ function bootFallbackCanvas() {
       ctx.lineTo(projected[b][0], projected[b][1]);
     }
     ctx.stroke();
-
-    requestAnimationFrame(draw);
   }
 
   window.addEventListener('resize', resize);
@@ -128,7 +134,14 @@ function bootScene(THREE) {
 
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer = new THREE.WebGLRenderer({ 
+      canvas, 
+      antialias: false, // Disable for better performance
+      powerPreference: 'high-performance',
+      stencil: false,
+      depth: true,
+      alpha: false // Disable alpha for better performance
+    });
   } catch (err) {
     bootFallbackCanvas();
     return;
@@ -140,7 +153,7 @@ function bootScene(THREE) {
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
   camera.position.z = 4.2;
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Reduce to 1x for max performance
 
   const cubeGeo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
   const cubeMat = new THREE.MeshPhongMaterial({
@@ -193,8 +206,9 @@ function bootScene(THREE) {
 
   window.addEventListener('v2-wall-flip', (evt) => {
     const isFlipped = Boolean(evt?.detail?.flipped);
+    console.log('Scene received flip event:', isFlipped ? 'BACK' : 'FRONT');
     setTheme(isFlipped ? 'back' : 'front');
-  });
+  }, { passive: true });
 
   function resize() {
     const w = window.innerWidth;
@@ -203,7 +217,7 @@ function bootScene(THREE) {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', resize, { passive: true });
 
   let lookAtX = 0;
   let lookAtY = 0;
@@ -219,32 +233,73 @@ function bootScene(THREE) {
   const SMOOTH = 0.08;
   const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+  
+  // Performance: cache last rotation values to avoid unnecessary updates
+  let lastRotX = 0;
+  let lastRotY = 0;
+  let lastRotZ = 0;
+  const ROT_THRESHOLD = 0.0001; // Only update if change is significant
+  let needsRender = true;
+  let frameSkip = 0;
+  let isSceneVisible = true; // Track if scene is visible through the wall cutout
+  let currentWallRotation = 0;
 
   window.addEventListener('v2-wall-motion', (evt) => {
     const rotateYDeg = Number(evt?.detail?.rotateYDeg);
     if (!Number.isFinite(rotateYDeg)) return;
     const turnProgress = clamp(rotateYDeg / -180, 0, 1);
     wallYawTarget = -turnProgress * WALL_SCROLL_YAW_MULTIPLIER;
-  });
+    currentWallRotation = rotateYDeg;
+    
+    // Scene is always visible - removed visibility check for smoother experience
+    isSceneVisible = true;
+    
+    needsRender = true;
+  }, { passive: true });
 
   document.addEventListener('mousemove', (e) => {
     const nx = clamp((e.clientX / window.innerWidth - 0.5) * 2, -1.2, 1.2);
     const ny = clamp((e.clientY / window.innerHeight - 0.5) * 2, -1.2, 1.2);
     lookAtY = nx * 0.15;
     lookAtX = ny * 0.15;
-  });
+    if (isSceneVisible) needsRender = true;
+  }, { passive: true });
 
   function tick() {
     requestAnimationFrame(tick);
+    
+    // Skip every other frame for better performance
+    frameSkip++;
+    if (frameSkip % 2 !== 0 && !needsRender) return;
 
     currentLookX = lerp(currentLookX, lookAtX, SMOOTH);
     currentLookY = lerp(currentLookY, lookAtY, SMOOTH);
     wallYawCurrent = lerp(wallYawCurrent, wallYawTarget, SMOOTH * 0.7);
-    cube.rotation.x = BASE_ROT_X + currentLookX + wallYawCurrent * 0.16;
-    cube.rotation.y = BASE_ROT_Y + currentLookY + wallYawCurrent;
-    cube.rotation.z = BASE_ROT_Z + currentLookY * -0.08 + currentLookX * 0.04;
+    
+    const newRotX = BASE_ROT_X + currentLookX + wallYawCurrent * 0.16;
+    const newRotY = BASE_ROT_Y + currentLookY + wallYawCurrent;
+    const newRotZ = BASE_ROT_Z + currentLookY * -0.08 + currentLookX * 0.04;
+    
+    // Only update rotation if change is significant (dirty flag optimization)
+    const rotChanged = Math.abs(newRotX - lastRotX) > ROT_THRESHOLD ||
+                       Math.abs(newRotY - lastRotY) > ROT_THRESHOLD ||
+                       Math.abs(newRotZ - lastRotZ) > ROT_THRESHOLD;
+    
+    if (rotChanged) {
+      cube.rotation.x = newRotX;
+      cube.rotation.y = newRotY;
+      cube.rotation.z = newRotZ;
+      lastRotX = newRotX;
+      lastRotY = newRotY;
+      lastRotZ = newRotZ;
+      needsRender = true;
+    }
 
-    renderer.render(scene, camera);
+    // Only render if something changed
+    if (needsRender) {
+      renderer.render(scene, camera);
+      needsRender = false;
+    }
   }
 
   setTheme('front');
