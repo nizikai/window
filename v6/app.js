@@ -248,7 +248,7 @@
           whiteCover.style.clipPath = 'none';
         } else {
           var vw = window.innerWidth;
-          var vh = window.innerHeight;
+          var vh = pinSection.offsetHeight;
           // sa2 > 0 → polygon CW  → reverse inner to make it CCW [0,3,2,1]
           // sa2 < 0 → polygon CCW → keep original order         [0,1,2,3]
           var ia = sa2 > 0 ? 3 : 1;
