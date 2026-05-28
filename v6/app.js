@@ -402,7 +402,8 @@
     lookTargetY = nx;
   }, { passive: true });
   
-  var GYRO_RANGE    = 12;   // degrees of physical tilt = full [-1, 1] cursor effect
+  // Match holographic-card gyro feel: ±20° physical tilt maps to full [-1, 1].
+  var GYRO_RANGE    = 20;
   var gyroInitTimer  = null; // fires if no orientation events arrive within 500ms
   var gyroStaleTimer = null; // fires if events stop (sleep / permission revoked)
 
@@ -418,11 +419,12 @@
       gyroCalibGamma = e.gamma;
       gyroCalibBeta  = e.beta;
     }
-    // Clamp physical tilt to ±GYRO_RANGE then normalize to [-1, 1]
-    var dGamma = clamp(e.gamma - gyroCalibGamma, -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
-    var dBeta  = clamp(e.beta  - gyroCalibBeta,  -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
-    lookTargetY = dGamma;  // left/right tilt  → horizontal cursor
-    lookTargetX = -dBeta;  // forward/back tilt → vertical cursor
+    // Same axis model as holographic-card:
+    // x = -deltaGamma / RANGE, y = deltaBeta / RANGE
+    var tiltX = -clamp(e.gamma - gyroCalibGamma, -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
+    var tiltY = clamp(e.beta - gyroCalibBeta, -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
+    lookTargetY = tiltX;
+    lookTargetX = tiltY;
     gyroActive = true;
 
     // Feed gyro look values to the 3D scene

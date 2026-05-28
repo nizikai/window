@@ -266,8 +266,8 @@ function bootScene(THREE) {
   }, { passive: true });
 
   // Gyro tilt on mobile — driven by app.js via v2-look-update event.
-  // detail.y = dGamma (left/right tilt) → cube Y rotation
-  // detail.x = -dBeta (forward/back tilt) → cube X rotation
+  // detail.y = -deltaGamma / RANGE (left/right tilt) → cube Y rotation
+  // detail.x = deltaBeta / RANGE (forward/back tilt) → cube X rotation
   window.addEventListener('v2-look-update', (e) => {
     lookAtY = e.detail.y * 0.15;
     lookAtX = e.detail.x * 0.15;
