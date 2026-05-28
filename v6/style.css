@@ -249,7 +249,7 @@ body { min-height: 100vh; }
 
   /* Portrait window shape on mobile */
   .wall-cutout {
-    width: 90vw;
+    width: 140vw;
     aspect-ratio: 9 / 16;
   }
 }

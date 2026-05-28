@@ -398,18 +398,28 @@
     lookTargetY = nx;
   }, { passive: true });
   
+  var gyroStaleTimer = null;
+
   function onDeviceOrientation(e) {
     if (e.gamma === null || e.beta === null) return;
-    // Calibrate neutral position on first reading
+    // Calibrate neutral on first reading — wherever user holds device = center
     if (gyroCalibGamma === null) {
       gyroCalibGamma = e.gamma;
       gyroCalibBeta  = e.beta;
     }
-    var dGamma = e.gamma - gyroCalibGamma; // left/right tilt
-    var dBeta  = e.beta  - gyroCalibBeta;  // forward/back tilt
-    lookTargetY = clamp(dGamma * 0.05, -1, 1);
-    lookTargetX = clamp(-dBeta  * 0.05, -1, 1);
+    var dGamma = e.gamma - gyroCalibGamma; // left/right tilt → horizontal cursor
+    var dBeta  = e.beta  - gyroCalibBeta;  // forward/back tilt → vertical cursor
+    lookTargetY = clamp(dGamma * 0.07, -1, 1);
+    lookTargetX = clamp(-dBeta  * 0.07, -1, 1);
     gyroActive = true;
+
+    // Reset if events stop arriving (device sleep / permission lost)
+    clearTimeout(gyroStaleTimer);
+    gyroStaleTimer = setTimeout(function () {
+      gyroActive = false;
+      lookTargetX = 0;
+      lookTargetY = 0;
+    }, 500);
   }
 
   function setupGyro() {
