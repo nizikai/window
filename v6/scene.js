@@ -185,29 +185,37 @@ function bootScene(THREE) {
   scene.add(fillLight);
   scene.add(new THREE.HemisphereLight(0xc2eeff, 0x1a1e2f, 0.55));
 
-  function setTheme(name) {
-    if (name === 'back') {
-      cubeMat.color.setHex(0xba6dff);
-      cubeMat.emissive.setHex(0x3a1e56);
-      edgeMat.color.setHex(0xcf90ff);
-      scene.background.setHex(0x12051d);
-      keyLight.color.setHex(0xbd7cff);
-      fillLight.color.setHex(0x2ad8ff);
-      return;
-    }
+  // Front / back theme colour tables for smooth crossfade
+  const FRONT = {
+    bg:      new THREE.Color(0x050917),
+    cube:    new THREE.Color(0x12d8ff),
+    emissive:new THREE.Color(0x0c3c48),
+    edge:    new THREE.Color(0x12d8ff),
+    key:     new THREE.Color(0x12d8ff),
+    fill:    new THREE.Color(0x7a3df0)
+  };
+  const BACK = {
+    bg:      new THREE.Color(0x12051d),
+    cube:    new THREE.Color(0xba6dff),
+    emissive:new THREE.Color(0x3a1e56),
+    edge:    new THREE.Color(0xcf90ff),
+    key:     new THREE.Color(0xbd7cff),
+    fill:    new THREE.Color(0x2ad8ff)
+  };
+  let themeBlend = 0, themeTarget = 0;
 
-    cubeMat.color.setHex(0x12d8ff);
-    cubeMat.emissive.setHex(0x0c3c48);
-    edgeMat.color.setHex(0x12d8ff);
-    scene.background.setHex(0x050917);
-    keyLight.color.setHex(0x12d8ff);
-    fillLight.color.setHex(0x7a3df0);
+  function applyBlend(t) {
+    cubeMat.color.lerpColors(FRONT.cube, BACK.cube, t);
+    cubeMat.emissive.lerpColors(FRONT.emissive, BACK.emissive, t);
+    edgeMat.color.lerpColors(FRONT.edge, BACK.edge, t);
+    scene.background.lerpColors(FRONT.bg, BACK.bg, t);
+    keyLight.color.lerpColors(FRONT.key, BACK.key, t);
+    fillLight.color.lerpColors(FRONT.fill, BACK.fill, t);
   }
 
   window.addEventListener('v2-wall-flip', (evt) => {
-    const isFlipped = Boolean(evt?.detail?.flipped);
-    console.log('Scene received flip event:', isFlipped ? 'BACK' : 'FRONT');
-    setTheme(isFlipped ? 'back' : 'front');
+    themeTarget = Boolean(evt?.detail?.flipped) ? 1 : 0;
+    needsRender = true;
   }, { passive: true });
 
   function resize() {
@@ -281,6 +289,13 @@ function bootScene(THREE) {
     frameSkip++;
     if (frameSkip % 2 !== 0 && !needsRender) return;
 
+    // Crossfade theme colours when wall flip fires
+    if (Math.abs(themeBlend - themeTarget) > 0.001) {
+      themeBlend = lerp(themeBlend, themeTarget, 0.12);
+      applyBlend(themeBlend);
+      needsRender = true;
+    }
+
     currentLookX = lerp(currentLookX, lookAtX, SMOOTH);
     currentLookY = lerp(currentLookY, lookAtY, SMOOTH);
     wallYawCurrent = lerp(wallYawCurrent, wallYawTarget, SMOOTH * 0.7);
@@ -311,7 +326,7 @@ function bootScene(THREE) {
     }
   }
 
-  setTheme('front');
+  applyBlend(0);
   resize();
   tick();
 }
