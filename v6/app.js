@@ -172,7 +172,11 @@
       var vCx = window.innerWidth * 0.5;
       var vCy = pinSection.offsetHeight * 0.5;
       var PERSPECTIVE = 2500;
-      var SCREEN_PAD = 6; // pixels of screen-space overlap past the cutout outline
+      var SCREEN_PAD = 6;
+
+      // Border-radius in local 3D space (CSS clamp(18px,2vw,28px) scaled by cutout transform).
+      var holeRadius = Math.min(28, Math.max(18, window.innerWidth * 0.02));
+      var r = Math.min(holeRadius * cutoutScale, Math.min(hw, hh) * 0.45);
 
       var ryRad = rotateY * Math.PI / 180;
       var rxRad = rotateX * Math.PI / 180;
@@ -181,15 +185,31 @@
       var cX = Math.cos(rxRad), sX = Math.sin(rxRad);
       var cY = Math.cos(ryRad), sY = Math.sin(ryRad);
 
-      // Project the 4 local cutout corners (CW: TL, TR, BR, BL).
-      var cornersX = [-hw,  hw,  hw, -hw];
-      var cornersY = [-hh, -hh,  hh,  hh];
-      var pSx = [0, 0, 0, 0];
-      var pSy = [0, 0, 0, 0];
+      // 16-point polygon: 4 pts per corner (arc endpoints + 2 intermediates at 30°/60°).
+      // Each 90° arc is split into 3×30° segments — error ≤ r*(1−cos15°) ≈ 3.4%r,
+      // always inside the 6px frame-stroke. CW order in screen space (y-down).
+      // ra = r*sin(30°) = 0.5r,  rb = r*(1−cos(30°)) ≈ 0.134r
+      var ra = r * 0.5, rb = r * 0.1339745962;
+      var localX = [
+        -hw+r,  -hw+ra, -hw+rb, -hw,    // TL arc: top-edge → left-edge
+        -hw,    -hw+rb, -hw+ra, -hw+r,  // BL arc: left-edge → bottom-edge
+         hw-r,   hw-ra,  hw-rb,  hw,    // BR arc: bottom-edge → right-edge
+         hw,     hw-rb,  hw-ra,  hw-r   // TR arc: right-edge → top-edge
+      ];
+      var localY = [
+        -hh,    -hh+rb, -hh+ra, -hh+r,  // TL arc
+         hh-r,   hh-ra,  hh-rb,  hh,    // BL arc
+         hh,     hh-rb,  hh-ra,  hh-r,  // BR arc
+        -hh+r,  -hh+ra, -hh+rb, -hh     // TR arc
+      ];
+      var N = 16;
+
+      var pSx = new Array(N);
+      var pSy = new Array(N);
       var pcx = 0, pcy = 0;
-      for (var ci = 0; ci < 4; ci++) {
-        var lx = cornersX[ci];
-        var ly = cornersY[ci];
+      for (var ci = 0; ci < N; ci++) {
+        var lx = localX[ci];
+        var ly = localY[ci];
         var x = lx * cZ - ly * sZ;
         var y = lx * sZ + ly * cZ;
         var z = 0;
@@ -205,15 +225,12 @@
         pcx += pSx[ci];
         pcy += pSy[ci];
       }
-      pcx *= 0.25;
-      pcy *= 0.25;
+      pcx /= N;
+      pcy /= N;
 
-      // Inflate each projected corner outward from the projected centroid by SCREEN_PAD px.
-      // Store inflated coords — used for both the canvas clip-path and the inverse cover path.
-      var infSx = [0, 0, 0, 0];
-      var infSy = [0, 0, 0, 0];
+      // Inflate each projected point outward from the centroid by SCREEN_PAD px (screen-space).
       var poly = 'polygon(';
-      for (var pi = 0; pi < 4; pi++) {
+      for (var pi = 0; pi < N; pi++) {
         var dxp = pSx[pi] - pcx;
         var dyp = pSy[pi] - pcy;
         var dist = Math.sqrt(dxp * dxp + dyp * dyp);
@@ -225,40 +242,39 @@
           sx = pSx[pi];
           sy = pSy[pi];
         }
-        infSx[pi] = sx;
-        infSy[pi] = sy;
         poly += sx.toFixed(1) + 'px ' + sy.toFixed(1) + 'px';
-        if (pi < 3) poly += ',';
+        if (pi < N - 1) poly += ',';
       }
       poly += ')';
       sceneCanvas.style.clipPath = poly;
 
-      // White cover: inverse path — full-viewport CW rect + scene polygon CCW (winding −1).
-      // After the flip the projected corners reverse winding (CW→CCW), so inner-polygon
-      // order is chosen dynamically using the signed area of the raw projected polygon.
-      // At exact edge-on the polygon degenerates to a line (sa2 ≈ 0); the path() can't
-      // form a meaningful hole there, so fall back to no clip-path for that brief frame.
+      // White cover: inverse path using the 8-point projected polygon (not inflated).
+      // Winding direction flips after the 180° Y-rotation, so detect it dynamically.
       if (whiteCover) {
-        var sa2 =
-          (pSx[0]*pSy[1] - pSx[1]*pSy[0]) +
-          (pSx[1]*pSy[2] - pSx[2]*pSy[1]) +
-          (pSx[2]*pSy[3] - pSx[3]*pSy[2]) +
-          (pSx[3]*pSy[0] - pSx[0]*pSy[3]);
+        var sa2 = 0;
+        for (var si = 0; si < N; si++) {
+          var sj = (si + 1) % N;
+          sa2 += pSx[si] * pSy[sj] - pSx[sj] * pSy[si];
+        }
         if (Math.abs(sa2) < 100) {
           whiteCover.style.clipPath = 'none';
         } else {
           var vw = window.innerWidth;
           var vh = pinSection.offsetHeight;
-          // sa2 > 0 → polygon CW  → reverse inner to make it CCW [0,3,2,1]
-          // sa2 < 0 → polygon CCW → keep original order         [0,1,2,3]
-          var ia = sa2 > 0 ? 3 : 1;
-          var ic = sa2 > 0 ? 1 : 3;
-          whiteCover.style.clipPath =
-            'path("M0,0 H' + vw + ' V' + vh + ' H0 Z' +
-            ' M' + pSx[0].toFixed(1)  + ',' + pSy[0].toFixed(1)  +
-            ' L' + pSx[ia].toFixed(1) + ',' + pSy[ia].toFixed(1) +
-            ' L' + pSx[2].toFixed(1)  + ',' + pSy[2].toFixed(1)  +
-            ' L' + pSx[ic].toFixed(1) + ',' + pSy[ic].toFixed(1) + ' Z")';
+          // sa2 > 0 → CW → reverse points to make inner polygon CCW
+          // sa2 < 0 → CCW → keep original order
+          var innerPath = ' M' + pSx[0].toFixed(1) + ',' + pSy[0].toFixed(1);
+          if (sa2 > 0) {
+            for (var qi = N - 1; qi >= 1; qi--) {
+              innerPath += ' L' + pSx[qi].toFixed(1) + ',' + pSy[qi].toFixed(1);
+            }
+          } else {
+            for (var qi = 1; qi < N; qi++) {
+              innerPath += ' L' + pSx[qi].toFixed(1) + ',' + pSy[qi].toFixed(1);
+            }
+          }
+          innerPath += ' Z';
+          whiteCover.style.clipPath = 'path("M0,0 H' + vw + ' V' + vh + ' H0 Z' + innerPath + '")';
         }
       }
     }
