@@ -36,9 +36,13 @@
     var baseW = rotatingCutout.offsetWidth;
     var baseH = rotatingCutout.offsetHeight;
     if (!baseW || !baseH) return;
-    // On portrait mobile the 16:9 cutout may not cover full viewport height — scale to cover.
     var coverScale = Math.max(window.innerWidth / baseW, window.innerHeight / baseH) * 1.02;
-    maxCutoutScale = Math.max(1.545, coverScale);
+    // Desktop: keep 1.545 floor so the landscape cutout fully covers the viewport width.
+    // Mobile: the tall 9:16 cutout grows too fast with that floor — let coverScale win
+    // so the cutout only reaches full-viewport size near the end of the scroll.
+    maxCutoutScale = window.innerWidth < 780
+      ? coverScale
+      : Math.max(1.545, coverScale);
   }
 
   function easeInOut(t) {
@@ -398,7 +402,7 @@
     lookTargetY = nx;
   }, { passive: true });
   
-  var GYRO_RANGE    = 20;   // degrees of physical tilt = full [-1, 1] cursor effect
+  var GYRO_RANGE    = 12;   // degrees of physical tilt = full [-1, 1] cursor effect
   var gyroInitTimer  = null; // fires if no orientation events arrive within 500ms
   var gyroStaleTimer = null; // fires if events stop (sleep / permission revoked)
 
