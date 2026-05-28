@@ -170,7 +170,7 @@
       var hw = (cutoutBaseW * cutoutScale) * 0.5;
       var hh = (cutoutBaseH * cutoutScale) * 0.5;
       var vCx = window.innerWidth * 0.5;
-      var vCy = window.innerHeight * 0.5;
+      var vCy = pinSection.offsetHeight * 0.5;
       var PERSPECTIVE = 2500;
       var SCREEN_PAD = 6; // pixels of screen-space overlap past the cutout outline
 
