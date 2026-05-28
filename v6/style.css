@@ -188,6 +188,33 @@ body { min-height: 100vh; }
   letter-spacing: 0.1em;
 }
 
+.gyro-btn {
+  display: none;
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  z-index: 10;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gyro-btn.visible {
+  display: flex;
+}
+
 @keyframes pulse-bounce {
   0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
   50%      { transform: translateX(-50%) translateY(10px); opacity: 1; }

@@ -420,12 +420,20 @@
     if (!window.DeviceOrientationEvent) return;
     if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOS 13+: must be triggered from a user gesture
-      window.addEventListener('touchstart', function requestGyro() {
+      // iOS 13+: requestPermission must come from a direct click handler
+      var btn = document.getElementById('gyro-btn');
+      if (!btn) return;
+      btn.classList.add('visible');
+      btn.addEventListener('click', function () {
         DeviceOrientationEvent.requestPermission()
-          .then(function (state) { if (state === 'granted') setupGyro(); })
+          .then(function (state) {
+            if (state === 'granted') {
+              setupGyro();
+              btn.classList.remove('visible');
+            }
+          })
           .catch(function () {});
-      }, { once: true, passive: true });
+      });
     } else {
       setupGyro();
     }
