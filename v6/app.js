@@ -425,12 +425,18 @@
     lookTargetX = -dBeta;  // forward/back tilt → vertical cursor
     gyroActive = true;
 
+    // Feed gyro look values to the 3D scene
+    window.dispatchEvent(new CustomEvent('v2-look-update', {
+      detail: { x: lookTargetX, y: lookTargetY }
+    }));
+
     // Decay back to neutral if events stop arriving (sleep / revoked)
     clearTimeout(gyroStaleTimer);
     gyroStaleTimer = setTimeout(function () {
       gyroActive = false;
       lookTargetX = 0;
       lookTargetY = 0;
+      window.dispatchEvent(new CustomEvent('v2-look-update', { detail: { x: 0, y: 0 } }));
     }, 500);
   }
 
