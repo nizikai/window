@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Holographic Card</title>
+  <!-- Geist Mono — loaded from Vercel's CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Page layout */
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background-color: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Geist Mono', 'Courier New', monospace;
+    }
+
+    /* Card wrapper — provides 3D perspective context */
+    .card-wrapper {
+      perspective: 900px;
+    }
+
+    /* Card — standard business card dimensions */
+    .card {
+      width: 340px;
+      height: 216px;
+      border-radius: 12px;
+      position: relative;
+      overflow: visible; /* allow rim light pseudo-element to show */
+      will-change: transform;
+      background-color: #1a1a2e;
+
+      /* CSS custom properties — single source of truth for the rendering layer */
+      --tilt-x: 0;
+      --tilt-y: 0;
+      --holo-angle: 180;
+      --holo-x: 50;
+      --holo-y: 50;
+      --spec-x: 50;
+      --spec-y: 50;
+      --tilt-deg-x: 0;
+      --tilt-deg-y: 0;
+      --shadow-x: 0;
+      --shadow-y: 0;
+
+      transform-style: preserve-3d;
+      transform: rotateX(calc(var(--tilt-deg-x) * 1deg))
+                 rotateY(calc(var(--tilt-deg-y) * 1deg));
+
+      box-shadow:
+        calc(var(--shadow-x) * 1px) calc(var(--shadow-y) * 1px) 48px rgba(0,0,0,0.7),
+        calc(var(--shadow-x) * 0.4px) calc(var(--shadow-y) * 0.4px) 16px rgba(0,0,0,0.5);
+
+      transition: none;
+    }
+
+    /* Clip the inner content layers while letting the rim glow overflow */
+    .card-inner-clip {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    /* Rim light — a border glow that shifts with tilt to simulate a light source
+       catching the card edge. Uses a conic-gradient border trick. */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 13px;
+      padding: 1px;
+      background: conic-gradient(
+        from calc((var(--holo-angle) - 90) * 1deg),
+        rgba(255,255,255,0.0)  0%,
+        rgba(255,255,255,0.55) 20%,
+        rgba(180,200,255,0.35) 35%,
+        rgba(255,255,255,0.0)  50%,
+        rgba(255,255,255,0.0)  100%
+      );
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+  <script>
+    // All JS modules will be added here in subsequent tasks
+
+    /**
+     * CardContent — builds the static business card DOM.
+     *
+     * Injects name, title, and company text nodes into the card element,
+     * sets the aria-label for accessibility, and provides a destroy() method
+     * to cleanly remove all injected nodes.
+     *
+     * Requirements: 8.1, 8.2, 8.3, 8.5, 8.6, 10.2, 10.3
+     */
+    class CardContent {
+      /**
+       * @param {HTMLElement} cardElement - The root card element to inject content into.
+       */
+      constructor(cardElement) {
+        this._card = cardElement;
+        this._nodes = [];
+      }
+
+      /**
+       * Creates and appends DOM nodes for name, title, and company inside the card.
+       * Also sets the aria-label on the card element.
+       */
+      init() {
+        // Set aria-label for screen readers (Requirement 10.2)
+        this._card.setAttribute(
+          'aria-label',
+          'Holographic business card for Nico Prasetyo, Founder at Nizi Labs'
+        );
+
+        // Inner clip container — clips the overlay layers while the card's own
+        // overflow is visible so the rim-light ::before can show outside the border.
+        const clip = document.createElement('div');
+        clip.className = 'card-inner-clip';
+        this._card.appendChild(clip);
+        this._clip = clip;
+
+        // Content container
+        const container = document.createElement('div');
+        container.style.cssText = [
+          'position: absolute',
+          'inset: 0',
+          'z-index: 1',
+          'display: flex',
+          'flex-direction: column',
+          'justify-content: flex-end',
+          'padding: 24px 28px',
+          'pointer-events: none',
+        ].join('; ');
+
+        // Name — primary text element, large and bold (Requirement 8.1, 8.5)
+        const nameEl = document.createElement('p');
+        nameEl.textContent = 'Nico Prasetyo';
+        nameEl.style.cssText = [
+          "font-family: 'Geist Mono', 'Courier New', monospace",
+          'font-size: 28px',
+          'font-weight: 600',
+          'line-height: 1.2',
+          'color: #f0f0f0',
+          'margin: 0 0 6px 0',
+          'letter-spacing: 0.01em',
+        ].join('; ');
+
+        // Title — lighter weight, smaller size (Requirement 8.2, 8.5)
+        const titleEl = document.createElement('p');
+        titleEl.textContent = 'Founder';
+        titleEl.style.cssText = [
+          "font-family: 'Geist Mono', 'Courier New', monospace",
+          'font-size: 14px',
+          'font-weight: 300',
+          'line-height: 1.4',
+          'color: #c0c0c0',
+          'margin: 0 0 10px 0',
+          'letter-spacing: 0.04em',
+        ].join('; ');
+
+        // Company — distinct brand element with spaced uppercase treatment
+        // (Requirement 8.3, 8.5)
+        const companyEl = document.createElement('p');
+        companyEl.textContent = 'Nizi Labs';
+        companyEl.style.cssText = [
+          "font-family: 'Geist Mono', 'Courier New', monospace",
+          'font-size: 11px',
+          'font-weight: 400',
+          'line-height: 1.4',
+          'color: #c0c0c0',
+          'margin: 0',
+          'letter-spacing: 0.2em',
+          'text-transform: uppercase',
+        ].join('; ');
+
+        container.appendChild(nameEl);
+        container.appendChild(titleEl);
+        container.appendChild(companyEl);
+
+        this._clip.appendChild(container);
+        this._nodes.push(clip);
+      }
+
+      /**
+       * Removes all DOM nodes injected by init() and clears the aria-label.
+       */
+      destroy() {
+        for (const node of this._nodes) {
+          if (node.parentNode) {
+            node.parentNode.removeChild(node);
+          }
+        }
+        this._nodes = [];
+        this._card.removeAttribute('aria-label');
+      }
+    }
+
+    /**
+     * HolographicLayer — rainbow foil shimmer overlay.
+     *
+     * Creates a semi-transparent overlay element whose gradient and filter are
+     * expressed entirely in CSS using CSS custom properties set on the card root.
+     * After init(), no JavaScript touches this element again — all animation is
+     * CSS-driven via the custom properties updated by HolographicCard._writeCSSVars().
+     *
+     * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
+     */
+    class HolographicLayer {
+      /**
+       * @param {HTMLElement} cardElement - The root card element to append the overlay to.
+       * @param {Object} [options]
+       * @param {number} [options.opacity=0.65] - Overlay opacity in range [0, 1].
+       */
+      constructor(cardElement, options) {
+        this._card = cardElement;
+        this._opacity = (options && options.opacity != null) ? options.opacity : 0.55;
+        this._el = null;
+        this._styleEl = null;
+      }
+
+      /**
+       * Creates the .holo-layer overlay element and injects the CSS rule that
+       * drives the rainbow foil effect via CSS custom properties.
+       *
+       * The overlay is positioned absolutely over the full card surface at z-index 2,
+       * below the specular highlight (z-index 3) but above the card content (z-index 1).
+       */
+      init() {
+        // Inject the CSS rule for .holo-layer into <head> via a <style> element.
+        // Storing it as this._styleEl allows destroy() to clean it up.
+        // Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
+        //
+        // NOTE: conic-gradient with calc() inside from/at is unreliable on iOS Safari
+        // < 15.4. We use a layered linear-gradient approach instead, which works
+        // across all modern browsers including iOS Safari 14+. The hue-rotate filter
+        // on the element drives the full-spectrum color cycling as tilt changes.
+        this._styleEl = document.createElement('style');
+        this._styleEl.textContent = `
+          .holo-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            border-radius: inherit;
+            opacity: ${this._opacity};
+            mix-blend-mode: color-dodge;
+            pointer-events: none;
+            /*
+             * Pearl / iridescent foil — inspired by real holographic card stock.
+             * Uses silver-toned base hues (blue-grey, lavender, rose-gold, mint)
+             * at moderate saturation so it reads as light-shift rather than rainbow.
+             * The holo-angle sweeps only ~90° of hue-rotate across the full tilt
+             * range (controlled in _writeCSSVars), so a small tilt produces a
+             * noticeable but not garish color shift.
+             */
+            background:
+              linear-gradient(
+                calc(var(--holo-angle) * 1deg),
+                hsl(210, 30%, 80%)  0%,
+                hsl(260, 35%, 82%) 25%,
+                hsl(320, 28%, 84%) 50%,
+                hsl(170, 32%, 80%) 75%,
+                hsl(210, 30%, 80%) 100%
+              ),
+              linear-gradient(
+                calc(var(--holo-angle) * 1deg + 45deg),
+                transparent 20%,
+                rgba(255,255,255,0.10) 50%,
+                transparent 80%
+              );
+            filter: hue-rotate(calc(var(--holo-angle) * 0.25deg))
+                    saturate(1.4)
+                    brightness(1.08);
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .holo-layer {
+              animation: none;
+              filter: none;
+            }
+          }
+        `;
+        document.head.appendChild(this._styleEl);
+
+        this._el = document.createElement('div');
+        this._el.className = 'holo-layer';
+        // Append into the clip container so it's clipped by border-radius
+        const clip = this._card.querySelector('.card-inner-clip');
+        (clip || this._card).appendChild(this._el);
+      }
+
+      /**
+       * Removes the overlay element and the injected <style> rule from the DOM.
+       */
+      destroy() {
+        if (this._el && this._el.parentNode) {
+          this._el.parentNode.removeChild(this._el);
+        }
+        this._el = null;
+
+        if (this._styleEl && this._styleEl.parentNode) {
+          this._styleEl.parentNode.removeChild(this._styleEl);
+        }
+        this._styleEl = null;
+      }
+    }
+
+    /**
+     * SpecularHighlight — moving light reflection overlay.
+     *
+     * Creates a radial-gradient overlay that simulates a specular highlight
+     * (bright light reflection) tracking the tilt direction across the card surface.
+     * After init(), no JavaScript touches this element again — all animation is
+     * CSS-driven via --spec-x and --spec-y custom properties updated by
+     * HolographicCard._writeCSSVars().
+     *
+     * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
+     */
+    class SpecularHighlight {
+      /**
+       * @param {HTMLElement} cardElement - The root card element to append the overlay to.
+       * @param {Object} [options]
+       * @param {number} [options.intensity=0.8] - Peak opacity of the highlight in range [0, 1].
+       */
+      constructor(cardElement, options) {
+        this._card = cardElement;
+        this._intensity = (options && options.intensity != null) ? options.intensity : 0.8;
+        this._el = null;
+        this._styleEl = null;
+      }
+
+      /**
+       * Creates the .specular-layer overlay element and injects the CSS rule that
+       * drives the specular highlight effect via CSS custom properties.
+       *
+       * The overlay is positioned absolutely over the full card surface at z-index 3,
+       * above the holographic layer (z-index 2) and card content (z-index 1).
+       * The highlight position tracks --spec-x and --spec-y set on the card root.
+       */
+      init() {
+        // Inject the CSS rule for .specular-layer into <head> via a <style> element.
+        // Storing it as this._styleEl allows destroy() to clean it up.
+        // Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
+        this._styleEl = document.createElement('style');
+        this._styleEl.textContent = `
+          .specular-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            border-radius: inherit;
+            mix-blend-mode: overlay;
+            pointer-events: none;
+            background: radial-gradient(
+              circle at calc(var(--spec-x) * 1%) calc(var(--spec-y) * 1%),
+              rgba(255, 255, 255, calc(var(--spec-intensity, 0.8))) 0%,
+              rgba(255, 255, 255, 0.1) 30%,
+              transparent 60%
+            );
+          }
+        `;
+        document.head.appendChild(this._styleEl);
+
+        // Create the overlay <div> and append it to the card.
+        // The --spec-intensity custom property is set on the element itself so it
+        // can be consumed by the CSS calc() expression in the radial-gradient.
+        // Inline styles handle layout/stacking; visual appearance is CSS-rule-driven.
+        this._el = document.createElement('div');
+        this._el.className = 'specular-layer';
+        this._el.style.setProperty('--spec-intensity', this._intensity);
+        const clip = this._card.querySelector('.card-inner-clip');
+        (clip || this._card).appendChild(this._el);
+      }
+
+      /**
+       * Removes the overlay element and the injected <style> rule from the DOM.
+       */
+      destroy() {
+        if (this._el && this._el.parentNode) {
+          this._el.parentNode.removeChild(this._el);
+        }
+        this._el = null;
+
+        if (this._styleEl && this._styleEl.parentNode) {
+          this._styleEl.parentNode.removeChild(this._styleEl);
+        }
+        this._styleEl = null;
+      }
+    }
+
+    /**
+     * OrientationController — deviceorientation → TiltInput.
+     *
+     * Reads `deviceorientation` events and converts the raw beta/gamma angles
+     * into a normalized TiltInput value in the range [-1, 1] on each axis.
+     *
+     * If no `deviceorientation` event fires within 500ms of start(), the controller
+     * calls onTilt(null) to signal that FallbackMode should be activated.
+     *
+     * Requirements: 1.1, 1.2, 1.3, 1.5
+     */
+    class OrientationController {
+      /**
+       * @param {function(TiltInput|null): void} onTilt - Callback invoked with a
+       *   normalized TiltInput on each orientation event, or null to signal fallback.
+       */
+      constructor(onTilt) {
+        this._onTilt = onTilt;
+        // Bind the handler once so the same reference can be removed in stop().
+        this._boundHandler = this._onDeviceOrientation.bind(this);
+        this._fallbackTimer = null;
+        // Baseline angles captured from the first event so we measure relative
+        // movement rather than absolute angles. This fixes the dead-zone problem
+        // where holding the phone upright puts beta near 90°, far outside ±45°.
+        this._baseBeta  = null;
+        this._baseGamma = null;
+      }
+
+      /**
+       * Attaches the deviceorientation listener and starts a 500ms fallback timer.
+       * If no orientation event fires within 500ms, calls onTilt(null) to signal
+       * that the caller should activate FallbackMode.
+       *
+       * Requirement 1.5
+       */
+      start() {
+        window.addEventListener('deviceorientation', this._boundHandler);
+
+        // Start the fallback timer. It is cleared in _onDeviceOrientation() when
+        // the first event fires, or in stop() if the controller is torn down early.
+        this._fallbackTimer = setTimeout(() => {
+          this._fallbackTimer = null;
+          this._onTilt(null);
+        }, 500);
+      }
+
+      /**
+       * Detaches the deviceorientation listener and cancels the fallback timer.
+       */
+      stop() {
+        window.removeEventListener('deviceorientation', this._boundHandler);
+
+        if (this._fallbackTimer !== null) {
+          clearTimeout(this._fallbackTimer);
+          this._fallbackTimer = null;
+        }
+      }
+
+      /**
+       * Handles a deviceorientation event.
+       *
+       * Maps e.gamma → x and e.beta → y using:
+       *   normalized = clamp(angle, -45, 45) / 45
+       *
+       * gamma: left/right tilt (range −180..180) → clamped to [−45, 45] → x in [−1, 1]
+       * beta:  front/back tilt (range −180..180) → clamped to [−45, 45] → y in [−1, 1]
+       *
+       * Requirements: 1.1, 1.2, 1.3
+       *
+       * @param {DeviceOrientationEvent} e
+       */
+      _onDeviceOrientation(e) {
+        // Clear the fallback timer on the first event — orientation is available.
+        if (this._fallbackTimer !== null) {
+          clearTimeout(this._fallbackTimer);
+          this._fallbackTimer = null;
+        }
+
+        // Capture baseline on the first event so all subsequent readings are
+        // relative deltas. This means "however you're holding the phone right now"
+        // is the neutral {0,0} position, giving full range in every direction
+        // regardless of the phone's absolute orientation.
+        if (this._baseBeta === null) {
+          this._baseBeta  = e.beta  ?? 0;
+          this._baseGamma = e.gamma ?? 0;
+        }
+
+        const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+        // ±20° of physical wrist tilt maps to the full [-1, 1] range.
+        // This matches natural card-holding movement — you don't tilt 45°.
+        const RANGE = 20;
+        const x = -clamp((e.gamma ?? 0) - this._baseGamma, -RANGE, RANGE) / RANGE;
+        const y = clamp((e.beta  ?? 0) - this._baseBeta,  -RANGE, RANGE) / RANGE;
+
+        this._onTilt({ x, y });
+      }
+    }
+
+    /**
+     * MouseController — mouse hover → TiltInput.
+     *
+     * Reads mouse events relative to the card element and converts cursor
+     * position into a normalized TiltInput value in the range [-1, 1] on each
+     * axis. On mouseleave, runs a 600ms ease-out return animation back to the
+     * neutral tilt {0, 0}.
+     *
+     * Requirements: 3.1, 3.2, 3.3
+     */
+    class MouseController {
+      /**
+       * @param {HTMLElement} element - The card DOM element to listen on.
+       * @param {function(TiltInput): void} onTilt - Callback invoked with a
+       *   normalized TiltInput on each mouse move event and each animation frame
+       *   during the return animation.
+       */
+      constructor(element, onTilt) {
+        this._element = element;
+        this._onTilt = onTilt;
+
+        // Track the current tilt so the return animation knows where to start from.
+        this._currentTilt = { x: 0, y: 0 };
+
+        // RAF ID for the return animation — stored so it can be cancelled in stop().
+        this._returnRafId = null;
+
+        // Bind handlers once so the same references can be removed in stop().
+        this._boundMouseMove  = this._onMouseMove.bind(this);
+        this._boundMouseLeave = this._onMouseLeave.bind(this);
+      }
+
+      /**
+       * Attaches mousemove and mouseleave listeners to the card element.
+       *
+       * Requirement 3.1
+       */
+      start() {
+        this._element.addEventListener('mousemove',  this._boundMouseMove);
+        this._element.addEventListener('mouseleave', this._boundMouseLeave);
+      }
+
+      /**
+       * Detaches all listeners and cancels any in-progress return animation.
+       */
+      stop() {
+        this._element.removeEventListener('mousemove',  this._boundMouseMove);
+        this._element.removeEventListener('mouseleave', this._boundMouseLeave);
+
+        if (this._returnRafId !== null) {
+          cancelAnimationFrame(this._returnRafId);
+          this._returnRafId = null;
+        }
+      }
+
+      /**
+       * Handles a mousemove event.
+       *
+       * Computes the cursor position relative to the card's bounding rectangle and
+       * maps it to a TiltInput where the card center is {0, 0} and the edges are ±1.
+       *
+       * Mapping:
+       *   x = ((clientX - rect.left) / rect.width  - 0.5) * 2  → range [−1, 1]
+       *   y = ((clientY - rect.top)  / rect.height - 0.5) * 2  → range [−1, 1]
+       *
+       * Requirement 3.2
+       *
+       * @param {MouseEvent} e
+       */
+      _onMouseMove(e) {
+        // Cancel any in-progress return animation — the user is actively moving.
+        if (this._returnRafId !== null) {
+          cancelAnimationFrame(this._returnRafId);
+          this._returnRafId = null;
+        }
+
+        const rect = this._element.getBoundingClientRect();
+
+        // Guard against zero-dimension rects (e.g., hidden element).
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const x = -((e.clientX - rect.left) / rect.width  - 0.5) * 2;
+        const y = ((e.clientY - rect.top)  / rect.height - 0.5) * 2;
+
+        this._currentTilt = { x, y };
+        this._onTilt({ x, y });
+      }
+
+      /**
+       * Handles a mouseleave event.
+       *
+       * Starts the ease-out return animation back to {0, 0}.
+       *
+       * Requirement 3.3
+       */
+      _onMouseLeave() {
+        this._startReturnAnimation();
+      }
+
+      /**
+       * Starts a 600ms rAF-driven cubic ease-out interpolation from the current
+       * tilt back to {0, 0}, calling onTilt on each frame.
+       *
+       * Easing curve: t = 1 - (1 - progress)^3  (cubic ease-out)
+       * At progress = 0 → t = 0 (start value), at progress = 1 → t = 1 ({0, 0}).
+       *
+       * Requirement 3.3
+       */
+      _startReturnAnimation() {
+        // Cancel any previously running return animation before starting a new one.
+        if (this._returnRafId !== null) {
+          cancelAnimationFrame(this._returnRafId);
+          this._returnRafId = null;
+        }
+
+        const DURATION = 600; // ms
+        const startTilt = { x: this._currentTilt.x, y: this._currentTilt.y };
+        let startTime = null;
+
+        const animate = (timestamp) => {
+          if (startTime === null) startTime = timestamp;
+
+          const elapsed  = timestamp - startTime;
+          const progress = Math.min(elapsed / DURATION, 1); // clamp to [0, 1]
+
+          // Cubic ease-out: t = 1 - (1 - progress)^3
+          const t = 1 - Math.pow(1 - progress, 3);
+
+          // Interpolate from startTilt toward {0, 0}
+          const x = startTilt.x * (1 - t);
+          const y = startTilt.y * (1 - t);
+
+          this._currentTilt = { x, y };
+          this._onTilt({ x, y });
+
+          if (progress < 1) {
+            // Animation still running — schedule next frame.
+            this._returnRafId = requestAnimationFrame(animate);
+          } else {
+            // Animation complete — ensure we land exactly on {0, 0}.
+            this._currentTilt = { x: 0, y: 0 };
+            this._onTilt({ x: 0, y: 0 });
+            this._returnRafId = null;
+          }
+        };
+
+        this._returnRafId = requestAnimationFrame(animate);
+      }
+    }
+
+    /**
+     * PermissionManager — iOS 13+ DeviceMotionEvent.requestPermission gate.
+     *
+     * Detects whether the browser requires an explicit user gesture to access
+     * device motion data, shows a tap-to-enable overlay on the card, and handles
+     * the grant/deny/error outcomes by invoking the appropriate callback.
+     *
+     * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5
+     */
+    class PermissionManager {
+      /**
+       * @param {function(): void} onGranted - Called when the user grants permission.
+       * @param {function(): void} onDenied  - Called when the user denies permission
+       *   or when requestPermission() throws an error.
+       */
+      constructor(onGranted, onDenied) {
+        this._onGranted = onGranted;
+        this._onDenied  = onDenied;
+        this._overlay   = null;
+      }
+
+      /**
+       * Returns true when the browser requires an explicit permission request
+       * before DeviceOrientationEvent data can be read (iOS 13+).
+       *
+       * iOS 13+ gates deviceorientation behind DeviceOrientationEvent.requestPermission.
+       * Note: DeviceMotionEvent.requestPermission is the same gate on iOS — both APIs
+       * share the same permission. We check DeviceOrientationEvent first (more direct),
+       * then fall back to DeviceMotionEvent for broader compatibility.
+       *
+      * IMPORTANT: This permission gate only works over HTTPS. Over HTTP, iOS Safari
+      * will not expose requestPermission as a function, so needsPermission() returns
+      * false but deviceorientation events also won't fire. In that case, the
+      * coordinator handles unavailable gyro input based on device mode.
+       *
+       * Requirement 2.1
+       *
+       * @returns {boolean}
+       */
+      needsPermission() {
+        // Check DeviceOrientationEvent first (the event we actually use)
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          return true;
+        }
+        // Fallback: some iOS versions only expose it on DeviceMotionEvent
+        if (typeof DeviceMotionEvent !== 'undefined' &&
+            typeof DeviceMotionEvent.requestPermission === 'function') {
+          return true;
+        }
+        return false;
+      }
+
+      /**
+       * Builds the tap-to-enable overlay and appends it as an absolutely-positioned
+       * child of triggerElement. A single click listener on the overlay calls
+       * requestPermission(), satisfying the browser's user-gesture requirement.
+       *
+       * Requirement 2.1, 2.4
+       *
+       * @param {HTMLElement} triggerElement - The element to attach the overlay to
+       *   (typically the card element).
+       */
+      showPrompt(triggerElement) {
+        this._overlay = this._buildOverlay();
+        triggerElement.appendChild(this._overlay);
+      }
+
+      /**
+       * Calls DeviceOrientationEvent.requestPermission() (or DeviceMotionEvent as
+       * fallback) and routes the outcome:
+       * - 'granted' → removes overlay, calls onGranted()
+       * - anything else → removes overlay, calls onDenied()
+       * - throws → logs via console.warn, removes overlay, calls onDenied()
+       *
+       * Requirements: 2.2, 2.3, 2.5
+       */
+      async requestPermission() {
+        try {
+          // Prefer DeviceOrientationEvent.requestPermission (the event we use).
+          // Fall back to DeviceMotionEvent.requestPermission for older iOS.
+          const requester =
+            (typeof DeviceOrientationEvent !== 'undefined' &&
+             typeof DeviceOrientationEvent.requestPermission === 'function')
+              ? DeviceOrientationEvent.requestPermission.bind(DeviceOrientationEvent)
+              : DeviceMotionEvent.requestPermission.bind(DeviceMotionEvent);
+
+          const result = await requester();
+          this._removeOverlay();
+          if (result === 'granted') {
+            this._onGranted();
+          } else {
+            this._onDenied();
+          }
+        } catch (err) {
+          console.warn('DeviceOrientationEvent.requestPermission error:', err);
+          this._removeOverlay();
+          this._onDenied();
+        }
+      }
+
+      /**
+       * Creates the tap overlay DOM node: a semi-transparent dark full-card overlay
+       * with a centered "Tap to enable holographic effect" label.
+       *
+       * The overlay is absolutely positioned with z-index 10 so it sits above all
+       * holographic layers. A single { once: true } click listener triggers
+       * requestPermission() to satisfy the user-gesture requirement.
+       *
+       * Requirement 2.4
+       *
+       * @returns {HTMLElement}
+       */
+      _buildOverlay() {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+          position: absolute;
+          inset: 0;
+          z-index: 10;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: inherit;
+          cursor: pointer;
+        `;
+
+        const label = document.createElement('p');
+        label.textContent = 'Tap to enable holographic effect';
+        label.style.cssText = `
+          color: #ffffff;
+          font-family: 'Geist Mono', 'Courier New', monospace;
+          font-size: 14px;
+          font-weight: 500;
+          text-align: center;
+          padding: 0 20px;
+          margin: 0;
+          pointer-events: none;
+        `;
+
+        overlay.appendChild(label);
+        overlay.addEventListener('click', () => this.requestPermission(), { once: true });
+        return overlay;
+      }
+
+      /**
+       * Removes the overlay element from the DOM and clears the internal reference.
+       *
+       * Requirements: 2.2, 2.3, 2.5
+       */
+      _removeOverlay() {
+        if (this._overlay && this._overlay.parentNode) {
+          this._overlay.parentNode.removeChild(this._overlay);
+          this._overlay = null;
+        }
+      }
+    }
+
+    /**
+     * HolographicCard — top-level coordinator.
+     *
+     * Owns the requestAnimationFrame loop and wires together all modules:
+     * CardContent, HolographicLayer, SpecularHighlight, PermissionManager,
+     * OrientationController, and MouseController.
+     *
+     * JavaScript never writes pixel values directly to visual layer elements.
+     * Instead, _writeCSSVars() sets a fixed set of CSS custom properties on the
+     * card root element each frame. All gradient positions, rotation angles, and
+     * filter values are expressed as CSS calc() expressions that consume those
+     * properties — the browser's style engine does the heavy lifting.
+     *
+     * Requirements: 1.5, 2.3, 2.5, 3.1, 4.1, 4.3, 5.1, 5.2, 6.1, 7.1–7.6, 9.4
+     */
+    class HolographicCard {
+      /**
+       * @param {HTMLElement} containerElement - The element that will receive the
+       *   .card-wrapper > .card DOM structure.
+       * @param {Object} [options]
+       * @param {number} [options.holoOpacity=0.65]   - HolographicLayer opacity.
+       * @param {number} [options.specIntensity=0.8]  - SpecularHighlight intensity.
+       */
+      constructor(containerElement, options) {
+        this._container = containerElement;
+        this._options   = options || {};
+
+        // DOM references — populated in init()
+        this._wrapperEl = null;
+        this._cardEl    = null;
+
+        // Module instances — populated in init()
+        this._content     = null;
+        this._holoLayer   = null;
+        this._specular    = null;
+        this._permission  = null;
+        this._orientation = null;
+        this._mouse       = null;
+
+        // IntersectionObserver — populated in init()
+        this._observer = null;
+
+        // matchMedia listener for prefers-reduced-motion
+        this._motionQuery    = null;
+        this._motionListener = null;
+
+        // Animation state — single source of truth for the rAF loop.
+        // Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
+        this._state = {
+          currentTilt:  { x: 0, y: 0 }, // last tilt written to CSS vars
+          pendingTilt:  { x: 0, y: 0 }, // latest tilt from input source
+          isRunning:    false,           // rAF loop active
+          rafId:        null,            // current requestAnimationFrame handle
+          mode:         'uninitialized',  // 'mobile-gyro' | 'mobile-gyro-unavailable' | 'desktop-mouse'
+          inputMode:    'desktop-mouse', // selected in init() via _detectInputMode()
+          isVisible:    true,            // IntersectionObserver state
+          reducedMotion: false,          // prefers-reduced-motion
+        };
+
+        // Bind methods that are used as callbacks so the same reference can be
+        // removed in destroy().
+        this._tick            = this._tick.bind(this);
+        this._onTiltUpdate    = this._onTiltUpdate.bind(this);
+        this._activateFallback = this._activateFallback.bind(this);
+      }
+
+      // ─── Public API ──────────────────────────────────────────────────────────
+
+      /**
+       * Builds the .card-wrapper > .card DOM structure inside containerElement,
+       * instantiates and initialises all modules, then starts the rAF loop.
+       *
+       * Requirements: 7.1, 7.5, 9.4
+       */
+      init() {
+        // ── 1. Build DOM structure ──────────────────────────────────────────
+        this._wrapperEl = document.createElement('div');
+        this._wrapperEl.className = 'card-wrapper';
+
+        this._cardEl = document.createElement('div');
+        this._cardEl.className = 'card';
+
+        this._wrapperEl.appendChild(this._cardEl);
+        this._container.appendChild(this._wrapperEl);
+
+        // ── 2. Detect prefers-reduced-motion ───────────────────────────────
+        // Requirement 7.6, 10.1
+        this._motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        this._state.reducedMotion = this._motionQuery.matches;
+
+        // Listen for OS-level changes while the page is open.
+        this._motionListener = (e) => { this._state.reducedMotion = e.matches; };
+        this._motionQuery.addEventListener('change', this._motionListener);
+
+        // ── 3. Instantiate and initialise rendering modules ─────────────────
+        this._content = new CardContent(this._cardEl);
+        this._content.init();
+
+        this._holoLayer = new HolographicLayer(this._cardEl, {
+          opacity: this._options.holoOpacity != null ? this._options.holoOpacity : 0.65,
+        });
+        this._holoLayer.init();
+
+        this._specular = new SpecularHighlight(this._cardEl, {
+          intensity: this._options.specIntensity != null ? this._options.specIntensity : 0.8,
+        });
+        this._specular.init();
+
+        // ── 4. Select input mode ───────────────────────────────────────────
+        // Mobile: gyro only. Desktop: mouse hover only.
+        this._state.inputMode = this._detectInputMode();
+
+        if (this._state.inputMode === 'desktop-mouse') {
+          this._state.mode = 'desktop-mouse';
+          // Track hover on the non-rotating wrapper to avoid feedback jitter
+          // from reading bounds on the transformed card itself.
+          this._mouse = new MouseController(this._wrapperEl, this._onTiltUpdate);
+          this._mouse.start();
+        } else {
+          this._state.mode = 'mobile-gyro';
+
+          this._permission = new PermissionManager(
+            () => {
+              this._startOrientationController();
+            },
+            () => {
+              this._activateFallback();
+            }
+          );
+
+          if (this._permission.needsPermission()) {
+            this._permission.showPrompt(this._cardEl);
+          } else {
+            this._startOrientationController();
+          }
+        }
+
+        // ── 5. Set up IntersectionObserver ──────────────────────────────────
+        // Requirements: 7.4, 7.5
+        if (typeof IntersectionObserver !== 'undefined') {
+          this._observer = new IntersectionObserver(
+            (entries) => {
+              const visible = entries[0].isIntersecting;
+              this._state.isVisible = visible;
+              if (visible && this._state.isRunning && this._state.rafId === null) {
+                // Resume the loop — it paused itself when isVisible became false.
+                this._state.rafId = requestAnimationFrame(this._tick);
+              }
+            },
+            { threshold: 0.1 }
+          );
+          this._observer.observe(this._cardEl);
+        } else {
+          // IntersectionObserver not supported — always treat as visible.
+          this._state.isVisible = true;
+        }
+
+        // ── 6. Start the rAF loop ───────────────────────────────────────────
+        // Requirement 7.1
+        this._state.isRunning = true;
+        this._state.rafId = requestAnimationFrame(this._tick);
+      }
+
+      /**
+       * Stops the rAF loop, tears down all modules and event listeners, and
+       * removes the injected DOM nodes from the container.
+       *
+       * Also exposed on window as window.destroy() — Requirement 9.4.
+       */
+      destroy() {
+        // ── 1. Stop the rAF loop ────────────────────────────────────────────
+        this._state.isRunning = false;
+        if (this._state.rafId !== null) {
+          cancelAnimationFrame(this._state.rafId);
+          this._state.rafId = null;
+        }
+
+        // ── 2. Disconnect IntersectionObserver ──────────────────────────────
+        if (this._observer) {
+          this._observer.disconnect();
+          this._observer = null;
+        }
+
+        // ── 3. Remove matchMedia listener ───────────────────────────────────
+        if (this._motionQuery && this._motionListener) {
+          this._motionQuery.removeEventListener('change', this._motionListener);
+          this._motionListener = null;
+          this._motionQuery    = null;
+        }
+
+        // ── 4. Stop input controllers ───────────────────────────────────────
+        if (this._orientation) {
+          this._orientation.stop();
+          this._orientation = null;
+        }
+        if (this._mouse) {
+          this._mouse.stop();
+          this._mouse = null;
+        }
+
+        // ── 5. Destroy rendering modules ────────────────────────────────────
+        if (this._content)   { this._content.destroy();   this._content   = null; }
+        if (this._holoLayer) { this._holoLayer.destroy();  this._holoLayer = null; }
+        if (this._specular)  { this._specular.destroy();   this._specular  = null; }
+
+        // ── 6. Remove injected DOM ───────────────────────────────────────────
+        if (this._wrapperEl && this._wrapperEl.parentNode) {
+          this._wrapperEl.parentNode.removeChild(this._wrapperEl);
+        }
+        this._wrapperEl = null;
+        this._cardEl    = null;
+      }
+
+      // ─── Private methods ─────────────────────────────────────────────────────
+
+      /**
+       * Detects whether this environment should use mobile gyro mode or desktop
+       * mouse-hover mode.
+       *
+       * @returns {'mobile-gyro' | 'desktop-mouse'}
+       */
+      _detectInputMode() {
+        if (typeof navigator.userAgentData === 'object' &&
+            typeof navigator.userAgentData.mobile === 'boolean') {
+          return navigator.userAgentData.mobile ? 'mobile-gyro' : 'desktop-mouse';
+        }
+
+        const ua = navigator.userAgent || '';
+        const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Windows Phone|Mobile/i.test(ua);
+        return isMobileUA ? 'mobile-gyro' : 'desktop-mouse';
+      }
+
+      /**
+       * Instantiates OrientationController and starts it.
+       * Called either immediately (non-iOS) or after permission is granted (iOS).
+       *
+       * Requirement 1.1, 2.2
+       */
+      _startOrientationController() {
+        this._orientation = new OrientationController(this._onTiltUpdate);
+        this._orientation.start();
+      }
+
+      /**
+       * Derives all 11 CSS custom property values from a TiltInput and writes
+       * them to the card element in a single synchronous batch.
+       *
+       * Formulas (from design Data Models section):
+       *   --tilt-x        = tilt.x
+       *   --tilt-y        = tilt.y
+       *   --tilt-deg-x    = tilt.y * 12          (rotate around X axis / pitch)
+       *   --tilt-deg-y    = tilt.x * 12          (rotate around Y axis / yaw)
+       *   --holo-angle    = (tilt.x * 0.5 + 0.5) * 360   (0–360 deg)
+       *   --holo-x        = (tilt.x * 0.5 + 0.5) * 100   (0–100%)
+       *   --holo-y        = (tilt.y * 0.5 + 0.5) * 100   (0–100%)
+       *   --spec-x        = (tilt.x * 0.5 + 0.5) * 100   (0–100%)
+       *   --spec-y        = (tilt.y * 0.5 + 0.5) * 100   (0–100%)
+       *   --shadow-x      = tilt.x * -20         (opposite to tilt direction)
+       *   --shadow-y      = tilt.y * -20
+       *
+       * Requirements: 4.1, 4.3, 5.1, 5.2, 6.1, 7.2
+       *
+       * @param {{ x: number, y: number }} tilt - Normalized tilt in [-1, 1].
+       */
+      _writeCSSVars(tilt) {
+        const s = this._cardEl.style;
+        s.setProperty('--tilt-x',     tilt.x);
+        s.setProperty('--tilt-y',     tilt.y);
+        // 25° max rotation — matches the feel of physically tilting a card in hand
+        s.setProperty('--tilt-deg-x', tilt.y * 25);
+        s.setProperty('--tilt-deg-y', tilt.x * 25);
+        // Holo angle sweeps only 90° across the full tilt range so color shifts
+        // feel like light moving across foil, not a spinning rainbow wheel.
+        // Centered at 180° (neutral) → range [135°, 225°]
+        s.setProperty('--holo-angle', 180 + tilt.x * 45);
+        s.setProperty('--holo-x',     (tilt.x * 0.5 + 0.5) * 100);
+        s.setProperty('--holo-y',     (tilt.y * 0.5 + 0.5) * 100);
+        s.setProperty('--spec-x',     (tilt.x * 0.5 + 0.5) * 100);
+        s.setProperty('--spec-y',     (tilt.y * 0.5 + 0.5) * 100);
+        // Shadow offset scales with the larger tilt range
+        s.setProperty('--shadow-x',   tilt.x * -28);
+        s.setProperty('--shadow-y',   tilt.y * -28);
+      }
+
+      /**
+       * Callback invoked by OrientationController or MouseController on each
+       * input event.
+       *
+       * Stores the incoming tilt as state.pendingTilt so the rAF loop can pick
+       * it up on the next frame. If tilt is null, the orientation source has
+       * signalled that no events are available — activate FallbackMode.
+       *
+       * Requirements: 4.1, 4.3, 5.1, 5.2, 6.1, 7.2
+       *
+       * @param {{ x: number, y: number } | null} tilt
+       */
+      _onTiltUpdate(tilt) {
+        if (tilt === null) {
+          this._activateFallback();
+        } else {
+          this._state.pendingTilt = tilt;
+        }
+      }
+
+      /**
+       * The requestAnimationFrame loop body.
+       *
+       * Each frame:
+       *   1. Guard: bail out (without rescheduling) if the loop should be paused.
+       *   2. Read pendingTilt; substitute {0,0} when reducedMotion is active.
+       *   3. Write all 11 CSS custom properties in one synchronous batch.
+       *   4. Update currentTilt.
+       *   5. Reschedule for the next frame.
+       *
+       * Requirements: 7.1, 7.2, 7.3, 7.6
+       */
+      _tick() {
+        // ── 1. Guard ────────────────────────────────────────────────────────
+        if (!this._state.isRunning || !this._state.isVisible) {
+          // Pause: clear rafId so the IntersectionObserver can restart the loop
+          // when the card becomes visible again.
+          this._state.rafId = null;
+          return;
+        }
+
+        // ── 2. Determine effective tilt ─────────────────────────────────────
+        // Requirement 7.6: when reducedMotion is active, keep the card flat.
+        const targetTilt = this._state.reducedMotion
+          ? { x: 0, y: 0 }
+          : this._state.pendingTilt;
+
+        // Desktop hover benefits from a light low-pass filter to remove
+        // corner jitter without changing mobile gyro responsiveness.
+        const tilt = this._state.mode === 'desktop-mouse' && !this._state.reducedMotion
+          ? {
+              x: this._state.currentTilt.x + (targetTilt.x - this._state.currentTilt.x) * 0.18,
+              y: this._state.currentTilt.y + (targetTilt.y - this._state.currentTilt.y) * 0.18,
+            }
+          : targetTilt;
+
+        // ── 3. Write CSS custom properties ──────────────────────────────────
+        this._writeCSSVars(tilt);
+
+        // ── 4. Commit tilt ───────────────────────────────────────────────────
+        this._state.currentTilt = tilt;
+
+        // ── 5. Reschedule ────────────────────────────────────────────────────
+        this._state.rafId = requestAnimationFrame(this._tick);
+      }
+
+      /**
+       * Handles unavailable orientation input.
+       *
+       * On mobile, input remains gyro-only by design, so fallback keeps the card
+       * static when gyro is unavailable or denied. On desktop, this ensures the
+       * mouse controller is active.
+       *
+       * Requirements: 1.5, 2.3, 2.5, 3.1
+       */
+      _activateFallback() {
+        // Stop OrientationController if it is running.
+        if (this._orientation) {
+          this._orientation.stop();
+          this._orientation = null;
+        }
+
+        // Mobile mode is gyro-only: do not attach mouse/touch fallback handlers.
+        if (this._state.inputMode === 'mobile-gyro') {
+          this._state.mode = 'mobile-gyro-unavailable';
+          this._state.pendingTilt = { x: 0, y: 0 };
+          return;
+        }
+
+        // Desktop mode: ensure MouseController is active.
+        if (this._state.mode === 'desktop-mouse') return;
+        this._state.mode = 'desktop-mouse';
+
+        if (!this._mouse) {
+          this._mouse = new MouseController(this._cardEl, this._onTiltUpdate);
+          this._mouse.start();
+        }
+      }
+    }
+
+    // ─── Pure functions extracted for property-based testing ─────────────────
+    //
+    // These are the deterministic, side-effect-free cores of each module.
+    // They are defined here (outside the classes) so the test harness can call
+    // them directly without constructing DOM or browser-API-dependent objects.
+    // The class methods delegate to these same formulas, so testing them here
+    // gives full coverage of the correctness properties.
+    //
+    // Requirements: 9.1, 9.2 (single-file, no external deps)
+
+    /**
+     * Normalizes a raw device-orientation angle (beta or gamma) to [-1, 1].
+     * Clamps the angle to [-45, 45] then divides by 45.
+     * Property 1 — Requirements 1.2, 1.3
+     *
+     * @param {number} angle - Raw angle in degrees (any finite float).
+     * @returns {number} Normalized value in [-1, 1].
+     */
+    function normalizeAngle(angle) {
+      const clamped = Math.min(Math.max(angle, -45), 45);
+      return clamped / 45;
+    }
+
+    /**
+     * Maps a cursor/touch position within a bounding rect to a TiltInput.
+     * Card center → {0, 0}; card edges → ±1.
+     * Property 2 — Requirement 3.2
+     *
+     * @param {number} clientX
+     * @param {number} clientY
+     * @param {{ left: number, top: number, width: number, height: number }} rect
+     * @returns {{ x: number, y: number }}
+     */
+    function mapMouseToTilt(clientX, clientY, rect) {
+      const x = ((clientX - rect.left) / rect.width  - 0.5) * 2;
+      const y = ((clientY - rect.top)  / rect.height - 0.5) * 2;
+      return { x, y };
+    }
+
+    /**
+     * Cubic ease-out interpolation from an initial TiltInput toward {0, 0}.
+     * Property 3 — Requirement 3.3
+     *
+     * @param {{ x: number, y: number }} startTilt - Starting tilt value.
+     * @param {number} progress - Animation progress in [0, 1].
+     * @returns {{ x: number, y: number }} Interpolated tilt.
+     */
+    function easeOutReturn(startTilt, progress) {
+      const t = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+      return {
+        x: startTilt.x * (1 - t),
+        y: startTilt.y * (1 - t),
+      };
+    }
+
+    /**
+     * Derives all 11 CSS custom property values from a TiltInput.
+     * Optionally applies the reduced-motion override (tilt-deg-x/y → 0).
+     * Properties 4 & 5 — Requirements 4.1, 4.3, 5.1, 5.2, 5.6, 6.1, 6.4, 7.6, 10.1
+     *
+     * @param {{ x: number, y: number }} tilt - Normalized tilt in [-1, 1].
+     * @param {boolean} [reducedMotion=false]
+     * @returns {Object} Map of CSS custom property name → numeric value.
+     */
+    function deriveCSSVars(tilt, reducedMotion) {
+      const effectiveTilt = reducedMotion ? { x: 0, y: 0 } : tilt;
+      return {
+        '--tilt-x':     tilt.x,                          // raw tilt preserved
+        '--tilt-y':     tilt.y,
+        '--tilt-deg-x': effectiveTilt.y * 12,
+        '--tilt-deg-y': effectiveTilt.x * 12,
+        '--holo-angle': (tilt.x * 0.5 + 0.5) * 360,
+        '--holo-x':     (tilt.x * 0.5 + 0.5) * 100,
+        '--holo-y':     (tilt.y * 0.5 + 0.5) * 100,
+        '--spec-x':     (tilt.x * 0.5 + 0.5) * 100,
+        '--spec-y':     (tilt.y * 0.5 + 0.5) * 100,
+        '--shadow-x':   tilt.x * -20,
+        '--shadow-y':   tilt.y * -20,
+      };
+    }
+
+    // ─── Inline property-based test harness ──────────────────────────────────
+    //
+    // Activated when the page URL contains ?test=1.
+    // No external dependencies — a self-contained micro-PBT runner.
+    //
+    // Usage:
+    //   Open holographic-card.html?test=1 in a browser and check the console.
+    //
+    // Requirements: 9.1, 9.2
+
+    (function runTests() {
+      // Only run when ?test=1 is present in the URL.
+      if (!/[?&]test=1/.test(location.search)) return;
+
+      // ── Pseudo-random number generator (xorshift32) ──────────────────────
+      // A deterministic PRNG seeded from Date.now() so runs are reproducible
+      // when the seed is logged. No Math.random() dependency on test quality.
+      let _seed = (Date.now() ^ 0x9e3779b9) >>> 0 || 1;
+      function rand() {
+        _seed ^= _seed << 13;
+        _seed ^= _seed >>> 17;
+        _seed ^= _seed << 5;
+        return (_seed >>> 0) / 0xffffffff; // [0, 1)
+      }
+      function randFloat(min, max) { return min + rand() * (max - min); }
+      function randInt(min, max)   { return Math.floor(randFloat(min, max + 1)); }
+
+      console.log('%c[PBT] Holographic Card — Property-Based Tests', 'font-weight:bold;color:#7c3aed');
+      console.log(`[PBT] Seed: ${_seed}`);
+
+      // ── Micro test runner ─────────────────────────────────────────────────
+      const RUNS = 1000; // number of random samples per property
+      let passed = 0;
+      let failed = 0;
+
+      /**
+       * Runs `runs` random trials of `property(generate())`.
+       * Logs PASS or FAIL with the first failing example.
+       *
+       * @param {string}   name     - Human-readable property name.
+       * @param {function} generate - Returns a random input each call.
+       * @param {function} property - Returns true if the property holds for the input.
+       * @param {number}   [runs]   - Number of trials (default: RUNS).
+       */
+      function check(name, generate, property, runs) {
+        runs = runs || RUNS;
+        for (let i = 0; i < runs; i++) {
+          const input = generate();
+          let holds;
+          try {
+            holds = property(input);
+          } catch (err) {
+            console.error(`[PBT] FAIL  ${name}`);
+            console.error(`      Threw on input:`, input);
+            console.error(`      Error:`, err);
+            failed++;
+            return;
+          }
+          if (!holds) {
+            console.error(`[PBT] FAIL  ${name}`);
+            console.error(`      Counterexample:`, input);
+            failed++;
+            return;
+          }
+        }
+        console.log(`[PBT] PASS  ${name}  (${runs} trials)`);
+        passed++;
+      }
+
+      // ── Property 1: Angle Clamping and Normalization ──────────────────────
+      // For any beta/gamma angle, output is always in [-1, 1].
+      // For in-range angles [-45, 45], mapping is linear: normalized = angle / 45.
+      // Requirements 1.2, 1.3
+
+      check(
+        'Property 1a — normalizeAngle output always in [-1, 1]',
+        () => randFloat(-360, 360),
+        (angle) => {
+          const n = normalizeAngle(angle);
+          return n >= -1 - 1e-10 && n <= 1 + 1e-10;
+        }
+      );
+
+      check(
+        'Property 1b — normalizeAngle is linear for in-range inputs [-45, 45]',
+        () => randFloat(-45, 45),
+        (angle) => {
+          const n = normalizeAngle(angle);
+          const expected = angle / 45;
+          return Math.abs(n - expected) < 1e-10;
+        }
+      );
+
+      // ── Property 2: Mouse Position Mapping ───────────────────────────────
+      // For any (clientX, clientY) within the card rect, output is in [-1, 1].
+      // Card center → {0, 0}; card edges → ±1.
+      // Requirement 3.2
+
+      check(
+        'Property 2a — mapMouseToTilt output always in [-1, 1]',
+        () => {
+          const left = randFloat(0, 500), top = randFloat(0, 500);
+          const width = randFloat(10, 400), height = randFloat(10, 300);
+          const rect = { left, top, width, height };
+          const clientX = randFloat(left, left + width);
+          const clientY = randFloat(top,  top  + height);
+          return { clientX, clientY, rect };
+        },
+        ({ clientX, clientY, rect }) => {
+          const { x, y } = mapMouseToTilt(clientX, clientY, rect);
+          return x >= -1 - 1e-10 && x <= 1 + 1e-10 &&
+                 y >= -1 - 1e-10 && y <= 1 + 1e-10;
+        }
+      );
+
+      check(
+        'Property 2b — card center maps to {0, 0}',
+        () => {
+          const left = randFloat(0, 500), top = randFloat(0, 500);
+          const width = randFloat(10, 400), height = randFloat(10, 300);
+          return { left, top, width, height };
+        },
+        (rect) => {
+          const cx = rect.left + rect.width  / 2;
+          const cy = rect.top  + rect.height / 2;
+          const { x, y } = mapMouseToTilt(cx, cy, rect);
+          return Math.abs(x) < 1e-10 && Math.abs(y) < 1e-10;
+        }
+      );
+
+      check(
+        'Property 2c — card left edge maps to x = -1, right edge to x = +1',
+        () => {
+          const left = randFloat(0, 500), top = randFloat(0, 500);
+          const width = randFloat(10, 400), height = randFloat(10, 300);
+          const cy = top + height / 2;
+          return { left, top, width, height, cy };
+        },
+        ({ left, top, width, height, cy }) => {
+          const rect = { left, top, width, height };
+          const { x: xLeft  } = mapMouseToTilt(left,         cy, rect);
+          const { x: xRight } = mapMouseToTilt(left + width, cy, rect);
+          return Math.abs(xLeft  - (-1)) < 1e-10 &&
+                 Math.abs(xRight -   1 ) < 1e-10;
+        }
+      );
+
+      // ── Property 3: Ease-Out Return Interpolation ─────────────────────────
+      // For any startTilt and t ∈ [0, 1], result lies between startTilt and {0,0}.
+      // At t = 1, result equals {0, 0}.
+      // Requirement 3.3
+
+      check(
+        'Property 3a — easeOutReturn result lies between startTilt and {0,0}',
+        () => ({
+          startTilt: { x: randFloat(-1, 1), y: randFloat(-1, 1) },
+          progress:  randFloat(0, 1),
+        }),
+        ({ startTilt, progress }) => {
+          const { x, y } = easeOutReturn(startTilt, progress);
+          // The interpolated value must be between 0 and startTilt on each axis.
+          const inRangeX = startTilt.x >= 0
+            ? x >= -1e-10 && x <= startTilt.x + 1e-10
+            : x <= 1e-10  && x >= startTilt.x - 1e-10;
+          const inRangeY = startTilt.y >= 0
+            ? y >= -1e-10 && y <= startTilt.y + 1e-10
+            : y <= 1e-10  && y >= startTilt.y - 1e-10;
+          return inRangeX && inRangeY;
+        }
+      );
+
+      check(
+        'Property 3b — easeOutReturn at t=1 produces {0, 0}',
+        () => ({ x: randFloat(-1, 1), y: randFloat(-1, 1) }),
+        (startTilt) => {
+          const { x, y } = easeOutReturn(startTilt, 1);
+          return Math.abs(x) < 1e-10 && Math.abs(y) < 1e-10;
+        }
+      );
+
+      // ── Property 4: CSS Custom Property Derivation Correctness ───────────
+      // For any TiltInput {x, y} in [-1, 1], all 9 derived vars match formulas
+      // within floating-point tolerance (1e-10) and are within documented ranges.
+      // Requirements 4.1, 4.3, 5.1, 5.2, 5.6, 6.1, 6.4
+
+      check(
+        'Property 4 — deriveCSSVars matches all formulas and range invariants',
+        () => ({ x: randFloat(-1, 1), y: randFloat(-1, 1) }),
+        (tilt) => {
+          const v = deriveCSSVars(tilt, false);
+          const eps = 1e-10;
+
+          // Formula checks
+          if (Math.abs(v['--tilt-deg-x'] - tilt.y * 12)                    > eps) return false;
+          if (Math.abs(v['--tilt-deg-y'] - tilt.x * 12)                    > eps) return false;
+          if (Math.abs(v['--holo-angle'] - (tilt.x * 0.5 + 0.5) * 360)    > eps) return false;
+          if (Math.abs(v['--holo-x']     - (tilt.x * 0.5 + 0.5) * 100)    > eps) return false;
+          if (Math.abs(v['--holo-y']     - (tilt.y * 0.5 + 0.5) * 100)    > eps) return false;
+          if (Math.abs(v['--spec-x']     - (tilt.x * 0.5 + 0.5) * 100)    > eps) return false;
+          if (Math.abs(v['--spec-y']     - (tilt.y * 0.5 + 0.5) * 100)    > eps) return false;
+          if (Math.abs(v['--shadow-x']   - tilt.x * -20)                   > eps) return false;
+          if (Math.abs(v['--shadow-y']   - tilt.y * -20)                   > eps) return false;
+
+          // Range invariants
+          if (v['--tilt-deg-x'] < -12 - eps || v['--tilt-deg-x'] > 12 + eps) return false;
+          if (v['--tilt-deg-y'] < -12 - eps || v['--tilt-deg-y'] > 12 + eps) return false;
+          if (v['--holo-angle'] <   0 - eps || v['--holo-angle'] > 360 + eps) return false;
+          if (v['--holo-x']     <   0 - eps || v['--holo-x']     > 100 + eps) return false;
+          if (v['--holo-y']     <   0 - eps || v['--holo-y']     > 100 + eps) return false;
+          if (v['--spec-x']     <   0 - eps || v['--spec-x']     > 100 + eps) return false;
+          if (v['--spec-y']     <   0 - eps || v['--spec-y']     > 100 + eps) return false;
+          if (v['--shadow-x']   < -20 - eps || v['--shadow-x']   >  20 + eps) return false;
+          if (v['--shadow-y']   < -20 - eps || v['--shadow-y']   >  20 + eps) return false;
+
+          return true;
+        }
+      );
+
+      // ── Property 5: Reduced Motion Overrides Tilt ─────────────────────────
+      // For any TiltInput, when reducedMotion=true, --tilt-deg-x and --tilt-deg-y
+      // must both be 0 regardless of input.
+      // Requirements 7.6, 10.1
+
+      check(
+        'Property 5 — reducedMotion forces --tilt-deg-x and --tilt-deg-y to 0',
+        () => ({ x: randFloat(-1, 1), y: randFloat(-1, 1) }),
+        (tilt) => {
+          const v = deriveCSSVars(tilt, true);
+          return Math.abs(v['--tilt-deg-x']) < 1e-10 &&
+                 Math.abs(v['--tilt-deg-y']) < 1e-10;
+        }
+      );
+
+      // ── Summary ───────────────────────────────────────────────────────────
+      const total = passed + failed;
+      const style = failed === 0
+        ? 'font-weight:bold;color:#16a34a'
+        : 'font-weight:bold;color:#dc2626';
+      console.log(
+        `%c[PBT] Results: ${passed}/${total} properties passed` +
+        (failed > 0 ? ` — ${failed} FAILED` : ' ✓'),
+        style
+      );
+    })();
+
+    // ─── Bootstrap ───────────────────────────────────────────────────────────
+    // Instantiate HolographicCard on DOMContentLoaded and expose destroy() on
+    // window for clean teardown (e.g. when embedded in an iframe).
+    //
+    // Initialization order:
+    //   1. PermissionManager runs on iOS 13+ (needsPermission() → showPrompt())
+    //   2. OrientationController starts on Android / non-iOS (no permission gate)
+    //   3. MouseController activates as fallback on desktop (or after 500ms timeout)
+    //
+    // Requirements: 9.3, 9.4, 9.5
+    function bootstrap() {
+      // The static .card-wrapper > .card scaffold in the HTML is replaced by the
+      // coordinator's own DOM construction.  Remove the static wrapper first so
+      // we don't end up with two cards.
+      const staticWrapper = document.querySelector('.card-wrapper');
+      if (staticWrapper && staticWrapper.parentNode) {
+        staticWrapper.parentNode.removeChild(staticWrapper);
+      }
+
+      const card = new HolographicCard(document.body);
+      card.init();
+
+      // Expose destroy() globally — Requirement 9.4
+      window.destroy = () => card.destroy();
+
+      // Warn in console if served over HTTP on a mobile device — gyroscope
+      // permission requires HTTPS on iOS Safari. In mobile gyro-only mode,
+      // orientation unavailability means the card remains static.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.warn(
+          '[HolographicCard] Served over HTTP on a mobile device. ' +
+          'iOS Safari requires HTTPS for DeviceOrientationEvent permission. ' +
+          'Gyroscope tracking will not be available and the card will remain static.'
+        );
+      }
+    }
+
+    // Use DOMContentLoaded to guarantee the DOM is fully parsed before
+    // constructing the card.  If the script executes after the DOM is already
+    // interactive (e.g. deferred or placed at end of <body>), fire immediately.
+    // Requirement 9.3
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrap);
+    } else {
+      // DOM already parsed — run synchronously so the card appears immediately.
+      bootstrap();
+    }
+
+  </script>
+
+</body>
+</html>

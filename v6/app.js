@@ -398,22 +398,30 @@
     lookTargetY = nx;
   }, { passive: true });
   
-  var gyroStaleTimer = null;
+  var GYRO_RANGE    = 20;   // degrees of physical tilt = full [-1, 1] cursor effect
+  var gyroInitTimer  = null; // fires if no orientation events arrive within 500ms
+  var gyroStaleTimer = null; // fires if events stop (sleep / permission revoked)
 
   function onDeviceOrientation(e) {
+    // Clear the startup timer — orientation events are live
+    if (gyroInitTimer !== null) {
+      clearTimeout(gyroInitTimer);
+      gyroInitTimer = null;
+    }
     if (e.gamma === null || e.beta === null) return;
-    // Calibrate neutral on first reading — wherever user holds device = center
+    // Capture baseline on first event — wherever device is held = cursor center
     if (gyroCalibGamma === null) {
       gyroCalibGamma = e.gamma;
       gyroCalibBeta  = e.beta;
     }
-    var dGamma = e.gamma - gyroCalibGamma; // left/right tilt → horizontal cursor
-    var dBeta  = e.beta  - gyroCalibBeta;  // forward/back tilt → vertical cursor
-    lookTargetY = clamp(dGamma * 0.07, -1, 1);
-    lookTargetX = clamp(-dBeta  * 0.07, -1, 1);
+    // Clamp physical tilt to ±GYRO_RANGE then normalize to [-1, 1]
+    var dGamma = clamp(e.gamma - gyroCalibGamma, -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
+    var dBeta  = clamp(e.beta  - gyroCalibBeta,  -GYRO_RANGE, GYRO_RANGE) / GYRO_RANGE;
+    lookTargetY = dGamma;  // left/right tilt  → horizontal cursor
+    lookTargetX = -dBeta;  // forward/back tilt → vertical cursor
     gyroActive = true;
 
-    // Reset if events stop arriving (device sleep / permission lost)
+    // Decay back to neutral if events stop arriving (sleep / revoked)
     clearTimeout(gyroStaleTimer);
     gyroStaleTimer = setTimeout(function () {
       gyroActive = false;
@@ -422,20 +430,50 @@
     }, 500);
   }
 
+  function isMobileDevice() {
+    if (typeof navigator.userAgentData === 'object' &&
+        typeof navigator.userAgentData.mobile === 'boolean') {
+      return navigator.userAgentData.mobile;
+    }
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Windows Phone|Mobile/i
+      .test(navigator.userAgent || '');
+  }
+
+  function needsGyroPermission() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') return true;
+    if (typeof DeviceMotionEvent !== 'undefined' &&
+        typeof DeviceMotionEvent.requestPermission === 'function') return true;
+    return false;
+  }
+
+  function requestGyroPermission() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      return DeviceOrientationEvent.requestPermission();
+    }
+    return DeviceMotionEvent.requestPermission();
+  }
+
   function setupGyro() {
+    // 500ms startup guard — if no events fire, gyro is unavailable; wall stays static
+    gyroInitTimer = setTimeout(function () {
+      gyroInitTimer = null;
+      gyroActive = false;
+    }, 500);
     window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
   }
 
   function initGyro() {
-    if (!window.DeviceOrientationEvent) return;
-    if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOS 13+: requestPermission must come from a direct click handler
+    if (!isMobileDevice()) return;
+    if (typeof DeviceOrientationEvent === 'undefined' &&
+        typeof DeviceMotionEvent === 'undefined') return;
+    if (needsGyroPermission()) {
       var btn = document.getElementById('gyro-btn');
       if (!btn) return;
       btn.classList.add('visible');
       btn.addEventListener('click', function () {
-        DeviceOrientationEvent.requestPermission()
+        requestGyroPermission()
           .then(function (state) {
             if (state === 'granted') {
               setupGyro();
