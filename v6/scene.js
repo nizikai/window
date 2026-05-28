@@ -21,9 +21,12 @@ function bootFallbackCanvas() {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  let isBackTheme = false;
+  const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+  let themeBlend = 0, themeTarget = 0;
   let wallProgress = 0;
   let isSceneVisible = true;
+
+  function lerpC(a, b, t) { return Math.round(a + (b - a) * t); }
   const vertices = [
     [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
     [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
@@ -80,7 +83,11 @@ function bootFallbackCanvas() {
     const h = window.innerHeight;
     const t = performance.now() * 0.001;
 
-    ctx.fillStyle = isBackTheme ? '#12051d' : '#050917';
+    // Crossfade theme colours
+    if (Math.abs(themeBlend - themeTarget) > 0.001) themeBlend += (themeTarget - themeBlend) * 0.12;
+
+    const tb = themeBlend;
+    ctx.fillStyle = `rgb(${lerpC(5,18,tb)},${lerpC(9,5,tb)},${lerpC(23,29,tb)})`;
     ctx.fillRect(0, 0, w, h);
 
     const centerX = w * 0.5;
@@ -95,15 +102,10 @@ function bootFallbackCanvas() {
     const rotated = vertices.map((v) => rotatePoint(v, rx, ry, rz));
     const projected = rotated.map((v) => project(v, scale, camZ, centerX, centerY));
 
-    ctx.strokeStyle = isBackTheme ? '#e0b2ff' : '#41ecff';
+    ctx.strokeStyle = `rgb(${lerpC(65,224,tb)},${lerpC(236,178,tb)},${lerpC(255,255,tb)})`;
     ctx.lineWidth = 2.4;
-    
-    // Optimize: only set shadow properties once per theme, not every frame
-    const shadowColor = isBackTheme ? 'rgba(224, 178, 255, 0.75)' : 'rgba(65, 236, 255, 0.75)';
-    if (ctx.shadowColor !== shadowColor) {
-      ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = 14;
-    }
+    ctx.shadowColor = `rgba(${lerpC(65,224,tb)},${lerpC(236,178,tb)},255,0.75)`;
+    ctx.shadowBlur = 14;
 
     ctx.beginPath();
     for (const [a, b] of edges) {
@@ -115,7 +117,7 @@ function bootFallbackCanvas() {
 
   window.addEventListener('resize', resize);
   window.addEventListener('v2-wall-flip', (evt) => {
-    isBackTheme = Boolean(evt?.detail?.flipped);
+    themeTarget = Boolean(evt?.detail?.flipped) ? 1 : 0;
   });
   window.addEventListener('v2-wall-motion', (evt) => {
     const nextProgress = Number(evt?.detail?.progress);

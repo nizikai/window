@@ -116,12 +116,11 @@
     var e = easeInOut(progress);
     var baseRotateY = -180 * e; // Single 180-degree flip
     var rotateY = baseRotateY;
-    var tilt = window.innerWidth < 780 ? 0.25 : 1;
     // Use sin(2π·progress) so tilt is 0 at the flip and reverses local sign across it.
     // After the wall's 180° Y-rotation, the sign reversal cancels in screen space,
     // producing a continuous visual tilt instead of an apparent snap at the flip.
-    var rotateX = -Math.sin(progress * Math.PI * 2) * 8 * tilt;
-    var rotateZ = -Math.sin(progress * Math.PI * 2) * 0.7 * tilt;
+    var rotateX = -Math.sin(progress * Math.PI * 2) * 8;
+    var rotateZ = -Math.sin(progress * Math.PI * 2) * 0.7;
     var wallScale = 1;
     var verticalHover = progress >= 0.5 ? -lookCurrentX : lookCurrentX;
     var hoverTiltX = verticalHover * 5.8;
