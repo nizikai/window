@@ -16,6 +16,9 @@
   var lookCurrentX = 0;
   var lookCurrentY = 0;
   var isHoveringWall = false;
+  var gyroActive = false;
+  var gyroCalibBeta = null;
+  var gyroCalibGamma = null;
   // Flip exactly at 90 degrees
   var FLIP_THRESHOLD = -90;
   
@@ -343,7 +346,7 @@
     
     currentProgress += (cachedTarget - currentProgress) * adaptiveSmooth * smoothFactor;
     
-    if (!isHoveringWall) {
+    if (!isHoveringWall && !gyroActive) {
       lookTargetX = 0;
       lookTargetY = 0;
     }
@@ -373,8 +376,6 @@
     updateMaxCutoutScale();
   });
   
-  var TOUCH_TILT_SCALE = 0.3;
-
   pinSection.addEventListener('pointerenter', function (e) {
     if (e.pointerType === 'touch') return;
     isHoveringWall = true;
@@ -387,26 +388,8 @@
     lookTargetY = 0;
   });
 
-  pinSection.addEventListener('pointerdown', function (e) {
-    if (e.pointerType !== 'touch') return;
-    isHoveringWall = true;
-    var rect = pinSection.getBoundingClientRect();
-    var nx = clamp(((e.clientX - rect.left) / rect.width - 0.5) * 2, -1, 1);
-    var ny = clamp(((e.clientY - rect.top) / rect.height - 0.5) * 2, -1, 1);
-    lookTargetX = -ny * TOUCH_TILT_SCALE;
-    lookTargetY = nx * TOUCH_TILT_SCALE;
-  }, { passive: true });
-
   pinSection.addEventListener('pointermove', function (e) {
-    if (e.pointerType === 'touch') {
-      if (!isHoveringWall) return;
-      var rect = pinSection.getBoundingClientRect();
-      var nx = clamp(((e.clientX - rect.left) / rect.width - 0.5) * 2, -1, 1);
-      var ny = clamp(((e.clientY - rect.top) / rect.height - 0.5) * 2, -1, 1);
-      lookTargetX = -ny * TOUCH_TILT_SCALE;
-      lookTargetY = nx * TOUCH_TILT_SCALE;
-      return;
-    }
+    if (e.pointerType === 'touch') return;
     if (!isHoveringWall) return;
     var rect = pinSection.getBoundingClientRect();
     var nx = clamp(((e.clientX - rect.left) / rect.width - 0.5) * 2, -1, 1);
@@ -414,20 +397,40 @@
     lookTargetX = -ny;
     lookTargetY = nx;
   }, { passive: true });
-
-  pinSection.addEventListener('pointerup', function (e) {
-    if (e.pointerType !== 'touch') return;
-    isHoveringWall = false;
-    lookTargetX = 0;
-    lookTargetY = 0;
-  }, { passive: true });
-
-  pinSection.addEventListener('pointercancel', function (e) {
-    if (e.pointerType !== 'touch') return;
-    isHoveringWall = false;
-    lookTargetX = 0;
-    lookTargetY = 0;
-  }, { passive: true });
   
+  function onDeviceOrientation(e) {
+    if (e.gamma === null || e.beta === null) return;
+    // Calibrate neutral position on first reading
+    if (gyroCalibGamma === null) {
+      gyroCalibGamma = e.gamma;
+      gyroCalibBeta  = e.beta;
+    }
+    var dGamma = e.gamma - gyroCalibGamma; // left/right tilt
+    var dBeta  = e.beta  - gyroCalibBeta;  // forward/back tilt
+    lookTargetY = clamp(dGamma * 0.05, -1, 1);
+    lookTargetX = clamp(-dBeta  * 0.05, -1, 1);
+    gyroActive = true;
+  }
+
+  function setupGyro() {
+    window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
+  }
+
+  function initGyro() {
+    if (!window.DeviceOrientationEvent) return;
+    if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // iOS 13+: must be triggered from a user gesture
+      window.addEventListener('touchstart', function requestGyro() {
+        DeviceOrientationEvent.requestPermission()
+          .then(function (state) { if (state === 'granted') setupGyro(); })
+          .catch(function () {});
+      }, { once: true, passive: true });
+    } else {
+      setupGyro();
+    }
+  }
+
+  initGyro();
   tickWall(performance.now());
 })();
